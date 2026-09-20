@@ -1,0 +1,668 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleCode {
+  OWNER
+  MANAGEMENT
+  HR
+  DEPT_MANAGER
+  TEAM_LEADER
+  EMPLOYEE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  WFH
+  HOLIDAY
+  LEAVE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLARIFICATION
+  CANCELLED
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+  COMPLETED_ON_TIME
+  COMPLETED_LATE
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_EMPLOYEE
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  IT
+  HR
+  ACCOUNTS
+  PAYROLL
+  ADMIN
+  FACILITY
+  OTHER
+}
+
+enum SuggestionStatus {
+  NEW
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  IMPLEMENTED
+}
+
+enum InvoiceStatus {
+  GENERATED
+  PAID
+  PENDING
+  OVERDUE
+  PARTIAL
+}
+
+enum LeadStatus {
+  NEW
+  FOLLOW_UP
+  CONVERTED
+  LOST
+  PENDING
+}
+
+enum OrderStatus {
+  NEW
+  OPEN
+  PROCESSING
+  DISPATCHED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  DELAYED
+  PENDING
+}
+
+enum ExternalSourceType {
+  SALES
+  ACCOUNTS
+  REVENUE
+  OPERATIONS
+}
+
+enum IngestJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum HolidayType {
+  PUBLIC
+  COMPANY
+  OPTIONAL
+  FESTIVAL
+}
+
+enum RecruitmentStatus {
+  OPEN
+  INTERVIEWING
+  FILLED
+  CANCELLED
+  DELAYED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  code      String?    @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+  positions JobPosition[]
+}
+
+model Designation {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        RoleCode         @unique
+  name        String
+  description String?
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  id       String @id @default(cuid())
+  roleId   String
+  resource String
+  action   String
+  allowed  Boolean @default(true)
+  role     Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resource, action])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  employee     Employee?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  auditLogs    AuditLog[] @relation("AuditActor")
+  notifications Notification[]
+}
+
+model Employee {
+  id               String       @id @default(cuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode     String       @unique
+  firstName        String
+  lastName         String
+  phone            String?
+  photoUrl         String?
+  dateOfBirth      DateTime?
+  joiningDate      DateTime
+  departmentId     String?
+  department       Department?  @relation(fields: [departmentId], references: [id])
+  designationId    String?
+  designation      Designation? @relation(fields: [designationId], references: [id])
+  managerId        String?
+  manager          Employee?    @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports          Employee[]   @relation("EmployeeManager")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  attendance       Attendance[]
+  leaveBalances    LeaveBalance[]
+  leaveRequests    LeaveRequest[] @relation("LeaveApplicant")
+  leaveApprovals   LeaveRequest[] @relation("LeaveApprover")
+  assignedTasks    Task[]         @relation("TaskAssignee")
+  createdTasks     Task[]         @relation("TaskAssignor")
+  performanceScores PerformanceScore[]
+  tickets          Ticket[]       @relation("TicketRequester")
+  assignedTickets  Ticket[]       @relation("TicketAssignee")
+  suggestions      Suggestion[]
+  salespersonMetrics SalespersonMetric[]
+  leads            Lead[]
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date        DateTime        
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      AttendanceStatus @default(PRESENT)
+  workingMinutes Int?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model LeaveType {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  code      String         @unique
+  annualAllocation Int     @default(12)
+  balances  LeaveBalance[]
+  requests  LeaveRequest[]
+}
+
+model LeaveBalance {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year        Int
+  allocated   Int
+  used        Int       @default(0)
+  remaining   Int
+
+  @@unique([employeeId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id          String      @id @default(cuid())
+  employeeId  String
+  employee    Employee    @relation("LeaveApplicant", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId String
+  leaveType   LeaveType   @relation(fields: [leaveTypeId], references: [id])
+  startDate   DateTime   
+  endDate     DateTime   
+  reason      String
+  attachmentUrl String?
+  status      LeaveStatus @default(PENDING)
+  approverId  String?
+  approver    Employee?   @relation("LeaveApprover", fields: [approverId], references: [id])
+  reviewNote  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Holiday {
+  id          String      @id @default(cuid())
+  name        String
+  date        DateTime   
+  type        HolidayType @default(PUBLIC)
+  description String?
+  createdAt   DateTime    @default(now())
+}
+
+model Policy {
+  id           String   @id @default(cuid())
+  title        String
+  category     String
+  description  String
+  documentUrl  String?
+  version      String   @default("1.0")
+  effectiveDate DateTime
+  lastUpdated  DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+model Announcement {
+  id        String    @id @default(cuid())
+  title     String
+  body      String
+  pinned    Boolean   @default(false)
+  expiresAt DateTime?
+  attachmentUrl String?
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model CompanyContact {
+  id        String  @id @default(cuid())
+  name      String
+  role      String?
+  department String?
+  phone     String?
+  email     String?
+  isEmergency Boolean @default(false)
+}
+
+model SocialLink {
+  id       String @id @default(cuid())
+  platform String
+  url      String
+  order    Int    @default(0)
+}
+
+model AppSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(PENDING)
+  dueDate     DateTime?
+  completedAt DateTime?
+  assigneeId  String
+  assignee    Employee   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignorId  String
+  assignor    Employee   @relation("TaskAssignor", fields: [assignorId], references: [id])
+  isChecklist Boolean    @default(false)
+  checklistItems ChecklistItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+  @@index([assigneeId])
+}
+
+model ChecklistItem {
+  id        String  @id @default(cuid())
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  completed Boolean @default(false)
+  order     Int     @default(0)
+}
+
+model PerformanceScore {
+  id              String   @id @default(cuid())
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  periodStart     DateTime
+  periodEnd       DateTime
+  taskCompletion  Float
+  attendance      Float
+  timeliness      Float
+  productivity    Float
+  overall         Float
+  createdAt       DateTime @default(now())
+
+  @@index([employeeId, periodStart])
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  subject     String
+  description String
+  category    TicketCategory
+  priority    String         @default("MEDIUM")
+  status      TicketStatus   @default(OPEN)
+  attachmentUrl String?
+  requesterId String
+  requester   Employee       @relation("TicketRequester", fields: [requesterId], references: [id])
+  assigneeId  String?
+  assignee    Employee?      @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Suggestion {
+  id          String           @id @default(cuid())
+  subject     String
+  category    String
+  description String
+  attachmentUrl String?
+  isAnonymous Boolean          @default(false)
+  status      SuggestionStatus @default(NEW)
+  authorId    String?
+  author      Employee?        @relation(fields: [authorId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model JobPosition {
+  id                  String            @id @default(cuid())
+  title               String
+  slug                String?           @unique
+  description         String?
+  location            String?
+  employmentType      EmploymentType    @default(FULL_TIME)
+  salaryRange         String?
+  requirements        String?
+  isPublic            Boolean           @default(true)
+  publishedAt         DateTime?
+  departmentId        String?
+  department          Department?       @relation(fields: [departmentId], references: [id])
+  openingDate         DateTime
+  targetHireDate      DateTime
+  actualHireDate      DateTime?
+  status              RecruitmentStatus @default(OPEN)
+  applicantsCount     Int               @default(0)
+  interviewsScheduled Int               @default(0)
+  interviewsCompleted Int               @default(0)
+  selectedCount       Int               @default(0)
+  rejectedCount       Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  applications        JobApplication[]
+}
+
+model JobApplication {
+  id                String            @id @default(cuid())
+  positionId        String
+  position          JobPosition       @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  fullName          String
+  email             String
+  phone             String?
+  resumeUrl         String?
+  coverLetter       String?
+  linkedInUrl       String?
+  experienceYears   Float?
+  currentCompany    String?
+  status            ApplicationStatus @default(APPLIED)
+  hrNotes           String?
+  interviewAt       DateTime?
+  interviewLocation String?
+  lastEmailAt       DateTime?
+  lastEmailSubject  String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([positionId])
+  @@index([email])
+  @@index([status])
+}
+
+model ExternalSource {
+  id        String             @id @default(cuid())
+  name      String
+  type      ExternalSourceType
+  apiKeyHash String
+  apiKeyPrefix String
+  isActive  Boolean            @default(true)
+  lastSyncAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  ingestJobs IngestJob[]
+  leads     Lead[]
+  invoices  Invoice[]
+  financialSnapshots FinancialSnapshot[]
+  orders    Order[]
+  salespersonMetrics SalespersonMetric[]
+}
+
+model IngestJob {
+  id            String          @id @default(cuid())
+  sourceId      String?
+  source        ExternalSource? @relation(fields: [sourceId], references: [id])
+  domain        String
+  method        String
+  status        IngestJobStatus @default(PENDING)
+  totalRows     Int             @default(0)
+  successRows   Int             @default(0)
+  failedRows    Int             @default(0)
+  errors        Json?
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  completedAt   DateTime?
+}
+
+model Lead {
+  id           String      @id @default(cuid())
+  externalId   String
+  sourceId     String?
+  source       ExternalSource? @relation(fields: [sourceId], references: [id])
+  name         String?
+  email        String?
+  phone        String?
+  status       LeadStatus  @default(NEW)
+  leadSource   String?
+  salespersonId String?
+  salesperson  Employee?   @relation(fields: [salespersonId], references: [id])
+  revenue      Float       @default(0)
+  syncedAt     DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([status])
+}
+
+model SalespersonMetric {
+  id              String   @id @default(cuid())
+  externalId      String
+  sourceId        String?
+  source          ExternalSource? @relation(fields: [sourceId], references: [id])
+  employeeId      String?
+  employee        Employee? @relation(fields: [employeeId], references: [id])
+  salespersonName String
+  weekStart       DateTime
+  leadsAssigned   Int      @default(0)
+  leadsContacted  Int      @default(0)
+  leadsConverted  Int      @default(0)
+  revenueGenerated Float   @default(0)
+  target          Float    @default(0)
+  syncedAt        DateTime @default(now())
+
+  @@unique([sourceId, externalId])
+}
+
+model FinancialSnapshot {
+  id         String   @id @default(cuid())
+  externalId String
+  sourceId   String?
+  source     ExternalSource? @relation(fields: [sourceId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  vertical   String?
+  revenue    Float    @default(0)
+  grossProfit Float   @default(0)
+  netProfit  Float    @default(0)
+  expenses   Float    @default(0)
+  margin     Float    @default(0)
+  syncedAt   DateTime @default(now())
+
+  @@unique([sourceId, externalId])
+  @@index([periodStart, periodEnd])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  externalId    String
+  sourceId      String?
+  source        ExternalSource? @relation(fields: [sourceId], references: [id])
+  invoiceNumber String
+  customerName  String?
+  amount        Float
+  paidAmount    Float         @default(0)
+  status        InvoiceStatus @default(PENDING)
+  issueDate     DateTime     
+  dueDate       DateTime     
+  paidDate      DateTime?    
+  syncedAt      DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([dueDate, status])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  externalId      String
+  sourceId        String?
+  source          ExternalSource? @relation(fields: [sourceId], references: [id])
+  orderNumber     String
+  customerName    String?
+  status          OrderStatus @default(NEW)
+  orderDate       DateTime   
+  promisedDate    DateTime?  
+  dispatchedAt    DateTime?
+  deliveredAt     DateTime?
+  isOnTime        Boolean?
+  syncedAt        DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([status])
+}
+
+model CalendarToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String?
+  expiryDate   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  sourceId  String?
+  url       String
+  secret    String
+  domain    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AlertRule {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  threshold   Float?
+  isActive    Boolean  @default(true)
+  lastFiredAt DateTime?
+  createdAt   DateTime @default(now())
+}

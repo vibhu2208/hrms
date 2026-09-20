@@ -1,0 +1,54 @@
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { LeaveService } from './leave.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard, Roles } from '../auth/permissions.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+
+@Controller('leave')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+export class LeaveController {
+  constructor(private leave: LeaveService) {}
+
+  @Get('types')
+  types() {
+    return this.leave.leaveTypes();
+  }
+
+  @Get('balances')
+  balances(@CurrentUser() user: any, @Query('year') year?: string) {
+    return this.leave.balances(user.employeeId, year ? Number(year) : undefined);
+  }
+
+  @Post('apply')
+  apply(@CurrentUser() user: any, @Body() body: any) {
+    return this.leave.apply(user.employeeId, body);
+  }
+
+  @Get('mine')
+  mine(@CurrentUser() user: any) {
+    return this.leave.myRequests(user.employeeId);
+  }
+
+  @Get('pending')
+  @Roles('OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER')
+  pending() {
+    return this.leave.pending();
+  }
+
+  @Get()
+  @Roles('OWNER', 'HR', 'MANAGEMENT')
+  all(@Query('status') status?: any, @Query('departmentId') departmentId?: string) {
+    return this.leave.all({ status, departmentId });
+  }
+
+  @Patch(':id/review')
+  @Roles('OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER')
+  review(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
+    return this.leave.review(id, body.action, user.employeeId, user.id, body.note);
+  }
+
+  @Patch(':id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.leave.cancel(id, user.employeeId);
+  }
+}

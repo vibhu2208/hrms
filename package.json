@@ -1,0 +1,23 @@
+{
+  "name": "go-staff",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @go-staff/api\" \"npm run dev -w @go-staff/web\"",
+    "dev:api": "npm run dev -w @go-staff/api",
+    "dev:web": "npm run dev -w @go-staff/web",
+    "build": "npm run build -w @go-staff/shared && npm run build -w @go-staff/api && npm run build -w @go-staff/web",
+    "db:generate": "npm run prisma:generate -w @go-staff/api",
+    "db:migrate": "npm run prisma:migrate -w @go-staff/api",
+    "db:seed": "npm run prisma:seed -w @go-staff/api",
+    "db:push": "npm run prisma:push -w @go-staff/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: go-staff-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gostaff
+      POSTGRES_PASSWORD: gostaff
+      POSTGRES_DB: gostaff
+    ports:
+      - "5432:5432"
+    volumes:
+      - gostaff_pg:/var/lib/postgresql/data
+
+volumes:
+  gostaff_pg:
