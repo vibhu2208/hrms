@@ -38,6 +38,32 @@ npm run dev
 | hr@gostaff.local | password123 | HR |
 | employee@gostaff.local | password123 | Employee |
 
+## Deploy
+
+### API (Render)
+
+Backend lives at e.g. `https://hrms-snvh.onrender.com`. Set env vars from `apps/api/.env.example`, then run `db:push` / `db:seed` once.
+
+After the frontend is live, set on Render:
+
+```
+CORS_ORIGIN=https://YOUR-APP.vercel.app
+CAREERS_PUBLIC_URL=https://YOUR-APP.vercel.app/careers
+```
+
+### Web (Vercel)
+
+1. Import the GitHub repo in Vercel  
+2. **Root Directory:** `apps/web`  
+3. Env var:
+
+```
+NEXT_PUBLIC_API_URL=https://hrms-snvh.onrender.com/api/v1
+```
+
+`apps/web/vercel.json` already sets install/build for the npm workspace (`@go-staff/shared` is built first).
+
+
 ## Integration Hub
 
 Push data from any CRM/ERP/accounting tool:

@@ -10,3 +10,4 @@ coverage
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal
 uploads
+.vercel
