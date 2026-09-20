@@ -97,3 +97,12 @@ export async function publicApi<T = any>(
 export function isAdminRole(code?: string) {
   return ['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'].includes(code || '');
 }
+
+/** Owner/Management-only business dashboards & integration hub */
+export function canAccessBusinessData(code?: string) {
+  return ['OWNER', 'MANAGEMENT'].includes(code || '');
+}
+
+export function hasAnyRole(code: string | undefined, roles: string[]) {
+  return !!code && roles.includes(code);
+}

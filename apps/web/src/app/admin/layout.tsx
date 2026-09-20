@@ -2,26 +2,44 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useState } from 'react';
-import { AuthUser, clearSession, getStoredUser, isAdminRole } from '@/lib/api';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  AuthUser,
+  canAccessBusinessData,
+  clearSession,
+  getStoredUser,
+  hasAnyRole,
+  isAdminRole,
+} from '@/lib/api';
 
-const adminLinks = [
-  { href: '/admin', label: 'Dashboard' },
+type AdminLink = {
+  href: string;
+  label: string;
+  roles?: string[];
+};
+
+const adminLinks: AdminLink[] = [
+  { href: '/admin', label: 'Dashboard', roles: ['OWNER', 'MANAGEMENT', 'HR'] },
   { href: '/admin/employees', label: 'Employees' },
-  { href: '/admin/attendance', label: 'Attendance' },
-  { href: '/admin/leave', label: 'Leave' },
-  { href: '/admin/tasks', label: 'Tasks' },
-  { href: '/admin/performance', label: 'Performance' },
-  { href: '/admin/recruitment', label: 'Recruitment' },
-  { href: '/admin/sales', label: 'Sales' },
-  { href: '/admin/accounts', label: 'Accounts' },
-  { href: '/admin/revenue', label: 'Revenue & Profit' },
-  { href: '/admin/operations', label: 'Operations' },
-  { href: '/admin/integrations', label: 'Integration Hub' },
-  { href: '/admin/communication', label: 'Communication' },
-  { href: '/admin/reports', label: 'Reports' },
-  { href: '/admin/settings', label: 'Settings' },
+  { href: '/admin/attendance', label: 'Attendance', roles: ['OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER'] },
+  { href: '/admin/leave', label: 'Leave', roles: ['OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER'] },
+  { href: '/admin/tasks', label: 'Tasks', roles: ['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'] },
+  { href: '/admin/performance', label: 'Performance', roles: ['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'] },
+  { href: '/admin/recruitment', label: 'Recruitment', roles: ['OWNER', 'HR', 'MANAGEMENT'] },
+  { href: '/admin/sales', label: 'Sales', roles: ['OWNER', 'MANAGEMENT'] },
+  { href: '/admin/accounts', label: 'Accounts', roles: ['OWNER', 'MANAGEMENT'] },
+  { href: '/admin/revenue', label: 'Revenue & Profit', roles: ['OWNER', 'MANAGEMENT'] },
+  { href: '/admin/operations', label: 'Operations', roles: ['OWNER', 'MANAGEMENT'] },
+  { href: '/admin/integrations', label: 'Integration Hub', roles: ['OWNER', 'MANAGEMENT'] },
+  { href: '/admin/communication', label: 'Communication', roles: ['OWNER', 'HR', 'MANAGEMENT'] },
+  { href: '/admin/reports', label: 'Reports', roles: ['OWNER', 'MANAGEMENT', 'HR'] },
+  { href: '/admin/settings', label: 'Settings', roles: ['OWNER', 'MANAGEMENT', 'HR'] },
 ];
+
+function linkAllowed(link: AdminLink, roleCode?: string) {
+  if (!link.roles?.length) return true;
+  return hasAnyRole(roleCode, link.roles);
+}
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -37,7 +55,34 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     setUser(u);
   }, [router]);
 
+  const roleCode = user?.role?.code;
+  const visibleLinks = useMemo(
+    () => adminLinks.filter((l) => linkAllowed(l, roleCode)),
+    [roleCode],
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    const match = adminLinks.find(
+      (l) => l.href === pathname || (l.href !== '/admin' && pathname.startsWith(l.href)),
+    );
+    if (match && !linkAllowed(match, user.role?.code)) {
+      router.replace('/admin');
+    }
+  }, [user, pathname, router]);
+
   if (!user) return <div className="main">Loading…</div>;
+
+  const overview = visibleLinks.filter((l) => l.href === '/admin');
+  const hrms = visibleLinks.filter((l) =>
+    ['/admin/employees', '/admin/attendance', '/admin/leave', '/admin/tasks', '/admin/performance', '/admin/recruitment'].includes(l.href),
+  );
+  const business = visibleLinks.filter((l) =>
+    ['/admin/sales', '/admin/accounts', '/admin/revenue', '/admin/operations', '/admin/integrations'].includes(l.href),
+  );
+  const system = visibleLinks.filter((l) =>
+    ['/admin/communication', '/admin/reports', '/admin/settings'].includes(l.href),
+  );
 
   return (
     <div className="app-shell">
@@ -47,31 +92,64 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <span>Admin command center</span>
         </div>
         <nav className="nav">
-          <div className="section">Overview</div>
-          {adminLinks.slice(0, 1).map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
-              {l.label}
-            </Link>
-          ))}
-          <div className="section">HRMS</div>
-          {adminLinks.slice(1, 7).map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
-              {l.label}
-            </Link>
-          ))}
-          <div className="section">Business data</div>
-          {adminLinks.slice(7, 12).map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
-              {l.label}
-            </Link>
-          ))}
-          <div className="section">System</div>
-          {adminLinks.slice(12).map((l) => (
-            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
-              {l.label}
-            </Link>
-          ))}
+          {overview.length > 0 && (
+            <>
+              <div className="section">Overview</div>
+              {overview.map((l) => (
+                <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
+                  {l.label}
+                </Link>
+              ))}
+            </>
+          )}
+          {hrms.length > 0 && (
+            <>
+              <div className="section">HRMS</div>
+              {hrms.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={pathname === l.href || pathname.startsWith(`${l.href}/`) ? 'active' : ''}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </>
+          )}
+          {business.length > 0 && (
+            <>
+              <div className="section">Business data</div>
+              {business.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={pathname === l.href || pathname.startsWith(`${l.href}/`) ? 'active' : ''}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </>
+          )}
+          {system.length > 0 && (
+            <>
+              <div className="section">System</div>
+              {system.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={pathname === l.href || pathname.startsWith(`${l.href}/`) ? 'active' : ''}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
+        {!canAccessBusinessData(roleCode) && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 12, opacity: 0.85 }}>
+            Sales, accounts, and integrations are Owner / Management only.
+          </p>
+        )}
         <button
           className="btn secondary"
           style={{ marginTop: 'auto', color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }}

@@ -5,9 +5,15 @@ import { api } from '@/lib/api';
 
 export default function OperationsPage() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState('');
+
   useEffect(() => {
-    api('/dashboard/operations').then(setData);
+    api('/dashboard/operations')
+      .then(setData)
+      .catch((e) => setError(e.message || 'Failed to load operations'));
   }, []);
+
+  if (error) return <div className="error">{error}</div>;
   if (!data) return <p className="muted">Loading…</p>;
 
   return (

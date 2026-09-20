@@ -5,9 +5,15 @@ import { api } from '@/lib/api';
 
 export default function SalesPage() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState('');
+
   useEffect(() => {
-    api('/dashboard/sales').then(setData);
+    api('/dashboard/sales')
+      .then(setData)
+      .catch((e) => setError(e.message || 'Failed to load sales'));
   }, []);
+
+  if (error) return <div className="error">{error}</div>;
   if (!data) return <p className="muted">Loading…</p>;
 
   return (

@@ -9,11 +9,16 @@ import {
 export default function RevenuePage() {
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api(`/dashboard/revenue?period=${period}`).then(setData);
+    setError('');
+    api(`/dashboard/revenue?period=${period}`)
+      .then(setData)
+      .catch((e) => setError(e.message || 'Failed to load revenue'));
   }, [period]);
 
+  if (error) return <div className="error">{error}</div>;
   if (!data) return <p className="muted">Loading…</p>;
 
   return (

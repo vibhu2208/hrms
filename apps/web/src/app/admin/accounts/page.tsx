@@ -6,11 +6,15 @@ import { api } from '@/lib/api';
 export default function AccountsPage() {
   const [data, setData] = useState<any>(null);
   const [bucket, setBucket] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api('/dashboard/accounts').then(setData);
+    api('/dashboard/accounts')
+      .then(setData)
+      .catch((e) => setError(e.message || 'Failed to load accounts'));
   }, []);
 
+  if (error) return <div className="error">{error}</div>;
   if (!data) return <p className="muted">Loading…</p>;
 
   return (

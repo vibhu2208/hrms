@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: go-staff-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build -w @go-staff/shared && npm run prisma:generate -w @go-staff/api && npm run build -w @go-staff/api
+    startCommand: npm run start -w @go-staff/api
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

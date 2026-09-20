@@ -12,14 +12,20 @@ export default function IntegrationsPage() {
   const [newSource, setNewSource] = useState({ name: '', type: 'ACCOUNTS' });
   const [createdKey, setCreatedKey] = useState('');
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   async function load() {
-    const [s, j] = await Promise.all([
-      api('/integrations/sources'),
-      api('/integrations/jobs'),
-    ]);
-    setSources(s);
-    setJobs(j);
+    setError('');
+    try {
+      const [s, j] = await Promise.all([
+        api('/integrations/sources'),
+        api('/integrations/jobs'),
+      ]);
+      setSources(s);
+      setJobs(j);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load integrations');
+    }
   }
 
   useEffect(() => {
@@ -65,6 +71,7 @@ export default function IntegrationsPage() {
         Admin sees everything here — without replacing your CRM/ERP.
       </p>
       {message && <div className="card" style={{ marginBottom: 12, background: 'var(--brand-soft)' }}>{message}</div>}
+      {error && <div className="error" style={{ marginBottom: 12 }}>{error}</div>}
       {createdKey && (
         <div className="card" style={{ marginBottom: 12 }}>
           <strong>Save this API key now</strong> (shown once):
