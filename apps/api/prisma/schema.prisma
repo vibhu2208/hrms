@@ -144,6 +144,41 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+enum OnboardingStatus {
+  PENDING_OWNER
+  OFFER_LETTER
+  DOCUMENTS
+  CREATE_ACCOUNT
+  IT_HR_CHECKLIST
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum OffboardingStatus {
+  PENDING_OWNER
+  EXIT_CLEARANCE
+  FINAL_DOCUMENTS
+  REVOKE_ACCESS
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum LifecycleDocumentKind {
+  ID_PROOF
+  ADDRESS
+  BANK
+  EDUCATION
+  PREVIOUS_PAYSLIP
+  FINAL_PAYSLIP
+  OFFER_LETTER
+  RELIEVING_LETTER
+  EXPERIENCE_LETTER
+  PHOTO
+  OTHER
+}
+
 model Department {
   id        String     @id @default(cuid())
   name      String     @unique
@@ -196,6 +231,10 @@ model User {
   updatedAt    DateTime  @updatedAt
   auditLogs    AuditLog[] @relation("AuditActor")
   notifications Notification[]
+  onboardingRequested  OnboardingRequest[]  @relation("OnboardingRequester")
+  onboardingApproved   OnboardingRequest[]  @relation("OnboardingApprover")
+  offboardingRequested OffboardingRequest[] @relation("OffboardingRequester")
+  offboardingApproved  OffboardingRequest[] @relation("OffboardingApprover")
 }
 
 model Employee {
@@ -216,6 +255,7 @@ model Employee {
   managerId        String?
   manager          Employee?    @relation("EmployeeManager", fields: [managerId], references: [id])
   reports          Employee[]   @relation("EmployeeManager")
+  lastWorkingDay   DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -231,6 +271,8 @@ model Employee {
   suggestions      Suggestion[]
   salespersonMetrics SalespersonMetric[]
   leads            Lead[]
+  onboardingRequests  OnboardingRequest[]
+  offboardingRequests OffboardingRequest[]
 }
 
 model Attendance {
@@ -496,6 +538,7 @@ model JobApplication {
   lastEmailSubject  String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  onboardingRequests OnboardingRequest[]
 
   @@index([positionId])
   @@index([email])
@@ -665,4 +708,90 @@ model AlertRule {
   isActive    Boolean  @default(true)
   lastFiredAt DateTime?
   createdAt   DateTime @default(now())
+}
+
+model OnboardingRequest {
+  id               String           @id @default(cuid())
+  status           OnboardingStatus @default(PENDING_OWNER)
+  firstName        String
+  lastName         String
+  email            String
+  phone            String?
+  employeeCode     String?
+  roleCode         String           @default("EMPLOYEE")
+  joiningDate      DateTime
+  departmentId     String?
+  designationId    String?
+  managerId        String?
+  applicationId    String?
+  application      JobApplication? @relation(fields: [applicationId], references: [id])
+  employeeId       String?
+  employee         Employee?        @relation(fields: [employeeId], references: [id])
+  requestedById    String
+  requestedBy      User             @relation("OnboardingRequester", fields: [requestedById], references: [id])
+  ownerApproverId  String?
+  ownerApprover    User?            @relation("OnboardingApprover", fields: [ownerApproverId], references: [id])
+  reviewNote       String?
+  offerSubject     String?
+  offerBody        String?
+  offerSentAt      DateTime?
+  offerAcceptedAt  DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  documents        LifecycleDocument[]
+  checklistItems   LifecycleChecklistItem[]
+
+  @@index([status])
+  @@index([email])
+}
+
+model OffboardingRequest {
+  id               String            @id @default(cuid())
+  status           OffboardingStatus @default(PENDING_OWNER)
+  employeeId       String
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+  lastWorkingDay   DateTime
+  reason           String
+  requestedById    String
+  requestedBy      User              @relation("OffboardingRequester", fields: [requestedById], references: [id])
+  ownerApproverId  String?
+  ownerApprover    User?             @relation("OffboardingApprover", fields: [ownerApproverId], references: [id])
+  reviewNote       String?
+  accessRevokedAt  DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  documents        LifecycleDocument[]
+  checklistItems   LifecycleChecklistItem[]
+
+  @@index([status])
+  @@index([employeeId])
+}
+
+model LifecycleDocument {
+  id            String                @id @default(cuid())
+  kind          LifecycleDocumentKind @default(OTHER)
+  title         String
+  url           String
+  uploadedAt    DateTime              @default(now())
+  onboardingId  String?
+  onboarding    OnboardingRequest?    @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  offboardingId String?
+  offboarding   OffboardingRequest?   @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId])
+  @@index([offboardingId])
+}
+
+model LifecycleChecklistItem {
+  id            String              @id @default(cuid())
+  title         String
+  completed     Boolean             @default(false)
+  order         Int                 @default(0)
+  onboardingId  String?
+  onboarding    OnboardingRequest?  @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  offboardingId String?
+  offboarding   OffboardingRequest? @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId])
+  @@index([offboardingId])
 }

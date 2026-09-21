@@ -167,4 +167,34 @@ export class UsersService {
     });
     return emp;
   }
+
+  async deactivate(employeeId: string, lastWorkingDay?: string, actorId?: string) {
+    const emp = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { user: true },
+    });
+    if (!emp) throw new NotFoundException('Employee not found');
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: emp.userId },
+        data: { isActive: false },
+      }),
+      this.prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+          lastWorkingDay: lastWorkingDay ? new Date(lastWorkingDay) : new Date(),
+        },
+      }),
+    ]);
+
+    await this.audit.log({
+      actorId,
+      action: 'DEACTIVATE',
+      resource: 'EMPLOYEE',
+      resourceId: employeeId,
+    });
+
+    return this.findOne(employeeId);
+  }
 }

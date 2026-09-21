@@ -23,6 +23,8 @@ const adminLinks: AdminLink[] = [
   { href: '/admin/employees', label: 'Employees' },
   { href: '/admin/attendance', label: 'Attendance', roles: ['OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER'] },
   { href: '/admin/leave', label: 'Leave', roles: ['OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER'] },
+  { href: '/admin/onboarding', label: 'Onboarding', roles: ['OWNER', 'HR'] },
+  { href: '/admin/offboarding', label: 'Offboarding', roles: ['OWNER', 'HR'] },
   { href: '/admin/tasks', label: 'Tasks', roles: ['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'] },
   { href: '/admin/performance', label: 'Performance', roles: ['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'] },
   { href: '/admin/recruitment', label: 'Recruitment', roles: ['OWNER', 'HR', 'MANAGEMENT'] },
@@ -75,7 +77,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const overview = visibleLinks.filter((l) => l.href === '/admin');
   const hrms = visibleLinks.filter((l) =>
-    ['/admin/employees', '/admin/attendance', '/admin/leave', '/admin/tasks', '/admin/performance', '/admin/recruitment'].includes(l.href),
+    [
+      '/admin/employees',
+      '/admin/attendance',
+      '/admin/leave',
+      '/admin/onboarding',
+      '/admin/offboarding',
+      '/admin/tasks',
+      '/admin/performance',
+      '/admin/recruitment',
+    ].includes(l.href),
   );
   const business = visibleLinks.filter((l) =>
     ['/admin/sales', '/admin/accounts', '/admin/revenue', '/admin/operations', '/admin/integrations'].includes(l.href),

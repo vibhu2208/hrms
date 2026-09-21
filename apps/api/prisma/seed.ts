@@ -479,6 +479,45 @@ async function main() {
 
   });
 
+  const existingOnboarding = await prisma.onboardingRequest.findFirst({
+    where: { email: 'neha.gupta@example.com' },
+  });
+  if (!existingOnboarding) {
+    await prisma.onboardingRequest.create({
+      data: {
+        firstName: 'Neha',
+        lastName: 'Gupta',
+        email: 'neha.gupta@example.com',
+        phone: '+91 98765 11111',
+        employeeCode: 'GS-010',
+        roleCode: 'EMPLOYEE',
+        joiningDate: new Date(Date.now() + 14 * 86400000),
+        departmentId: eng.id,
+        designationId: swEng.id,
+        requestedById: hrUser.id,
+        status: 'PENDING_OWNER',
+      },
+    });
+  }
+
+  const existingOffboarding = await prisma.offboardingRequest.findFirst({
+    where: {
+      employeeId: empUser.employee!.id,
+      status: 'PENDING_OWNER',
+    },
+  });
+  if (!existingOffboarding) {
+    await prisma.offboardingRequest.create({
+      data: {
+        employeeId: empUser.employee!.id,
+        lastWorkingDay: new Date(Date.now() + 30 * 86400000),
+        reason: 'Resignation — pursuing higher studies (demo case)',
+        requestedById: hrUser.id,
+        status: 'PENDING_OWNER',
+      },
+    });
+  }
+
   console.log('Seed complete.');
   console.log('Login: owner@gostaff.local / password123');
   console.log('       hr@gostaff.local / password123');

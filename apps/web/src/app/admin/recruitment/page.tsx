@@ -519,6 +519,23 @@ export default function RecruitmentPage() {
                   </select>
                 </div>
 
+                {selectedApp.status === 'HIRED' && (
+                  <div style={{ marginBottom: 16 }}>
+                    <Link
+                      className="btn"
+                      href={`/admin/onboarding?${new URLSearchParams({
+                        applicationId: selectedApp.id,
+                        firstName: selectedApp.fullName?.split(' ')[0] || '',
+                        lastName: selectedApp.fullName?.split(' ').slice(1).join(' ') || '',
+                        email: selectedApp.email || '',
+                        phone: selectedApp.phone || '',
+                      }).toString()}`}
+                    >
+                      Start onboarding
+                    </Link>
+                  </div>
+                )}
+
                 <h3 style={{ fontSize: '1rem', marginBottom: 8 }}>Email candidate</h3>
                 <form onSubmit={sendEmail} style={{ display: 'grid', gap: 10 }}>
                   <div className="field">

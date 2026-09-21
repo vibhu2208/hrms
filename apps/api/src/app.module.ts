@@ -18,6 +18,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { AuditModule } from './audit/audit.module';
 import { EmailModule } from './email/email.module';
+import { LifecycleModule } from './lifecycle/lifecycle.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { EmailModule } from './email/email.module';
     ReportsModule,
     CalendarModule,
     AlertsModule,
+    LifecycleModule,
   ],
 })
 export class AppModule {}
