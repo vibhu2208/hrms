@@ -49,7 +49,12 @@ export default function CareersPage() {
             <div>
               <h2>{job.title}</h2>
               <div className="muted">
-                {[job.department?.name, job.location, job.employmentType?.replace('_', ' ')]
+                {[
+                  job.designation?.name && job.designation.name !== job.title ? job.designation.name : null,
+                  job.department?.name,
+                  job.location,
+                  job.employmentType?.replace('_', ' '),
+                ]}
                   .filter(Boolean)
                   .join(' · ')}
               </div>

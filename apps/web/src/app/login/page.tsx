@@ -1,15 +1,21 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { api, isAdminRole, setSession } from '@/lib/api';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { API_URL, api, isAdminRole, setSession } from '@/lib/api';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState('owner@gostaff.local');
+  const params = useSearchParams();
+  const [email, setEmail] = useState('connect@aithworld.com');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const message = params.get('error');
+    if (message) setError(message);
+  }, [params]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -32,33 +38,55 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="login-card" onSubmit={onSubmit}>
-        <div className="muted" style={{ marginBottom: 4 }}>Business command center</div>
+      <div className="login-card">
+        <div className="muted" style={{ marginBottom: 4 }}>
+          Business command center
+        </div>
         <h1>Go Staff</h1>
         <p className="muted" style={{ marginTop: 0, marginBottom: '1.5rem' }}>
-          Sign in to manage people, tasks, and ingested business data in one place.
+          Sign in with your company Microsoft 365 account, or with the email and password issued by HR.
         </p>
         {error && <div className="error">{error}</div>}
-        <div className="field">
-          <label className="label">Email</label>
-          <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="label">Password</label>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <button className="btn" style={{ width: '100%' }} disabled={loading}>
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-        <p className="muted" style={{ fontSize: 13, marginTop: '1.25rem' }}>
-          Demo: owner@gostaff.local / hr@gostaff.local / employee@gostaff.local — password123
+        <a
+          className="btn"
+          href={`${API_URL}/auth/microsoft`}
+          style={{ display: 'block', textAlign: 'center', marginBottom: '1rem' }}
+        >
+          Sign in with Microsoft
+        </a>
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          Use the company email already saved on your employee record.
         </p>
-      </form>
+        <form onSubmit={onSubmit}>
+          <div className="field">
+            <label className="label">Email</label>
+            <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="field">
+            <label className="label">Password</label>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <button className="btn secondary" style={{ width: '100%' }} disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in with password'}
+          </button>
+        </form>
+        <p className="muted" style={{ fontSize: 13, marginTop: '1.25rem' }}>
+          Demo password login: connect@aithworld.com / hr@gostaff.local / employee@gostaff.local — password123
+        </p>
+      </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="login-page">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

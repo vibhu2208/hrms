@@ -54,21 +54,39 @@ export class TasksService {
     status?: TaskStatus;
     assigneeId?: string;
     employeeId?: string;
+    openOnly?: boolean;
   }) {
     await this.markOverdue();
+    const where = {
+      ...(filters?.openOnly ? { status: { in: [TaskStatus.PENDING, TaskStatus.OVERDUE] } } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.assigneeId || filters?.employeeId
+        ? { assigneeId: filters.assigneeId || filters.employeeId }
+        : {}),
+    };
+    if (filters?.openOnly) {
+      return this.prisma.task.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          dueDate: true,
+          assigneeId: true,
+          assignee: { select: { id: true, firstName: true, lastName: true } },
+          checklistItems: { select: { completed: true }, orderBy: { order: 'asc' } },
+        },
+      });
+    }
     return this.prisma.task.findMany({
-      where: {
-        ...(filters?.status ? { status: filters.status } : {}),
-        ...(filters?.assigneeId || filters?.employeeId
-          ? { assigneeId: filters.assigneeId || filters.employeeId }
-          : {}),
-      },
+      where,
+      orderBy: { createdAt: 'desc' },
       include: {
         assignee: { include: { department: true } },
         assignor: true,
         checklistItems: { orderBy: { order: 'asc' } },
       },
-      orderBy: { createdAt: 'desc' },
     });
   }
 

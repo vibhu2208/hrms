@@ -21,11 +21,13 @@ export class TasksController {
     @Query('status') status?: any,
     @Query('assigneeId') assigneeId?: string,
     @Query('mine') mine?: string,
+    @Query('open') open?: string,
   ) {
+    const openOnly = open === 'true';
     if (mine === 'true' || !['OWNER', 'MANAGEMENT', 'HR', 'DEPT_MANAGER'].includes(user.role)) {
-      return this.tasks.list({ assigneeId: user.employeeId, status });
+      return this.tasks.list({ assigneeId: user.employeeId, status, openOnly });
     }
-    return this.tasks.list({ status, assigneeId });
+    return this.tasks.list({ status, assigneeId, openOnly });
   }
 
   @Get('stats')

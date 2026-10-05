@@ -28,7 +28,10 @@ export default function EmployeeHome() {
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Today&apos;s attendance</h2>
           {today ? (
             <p>
-              <span className="badge green">{today.status}</span>
+              <span className={`badge ${today.status === 'PRESENT' ? 'green' : today.status === 'REJECTED' ? 'red' : 'amber'}`}>
+                {today.status}
+              </span>
+              {today.approvalStatus === 'PENDING' && ' · Waiting for HR'}
               {today.checkIn && <> · In {new Date(today.checkIn).toLocaleTimeString()}</>}
               {today.checkOut && <> · Out {new Date(today.checkOut).toLocaleTimeString()}</>}
             </p>

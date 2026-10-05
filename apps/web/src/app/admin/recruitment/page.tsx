@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { CatalogHint } from '@/components/catalog-hint';
 
 type Tab = 'positions' | 'applicants';
 
@@ -19,6 +20,7 @@ const APP_STATUSES = [
 const emptyJob = {
   title: '',
   departmentId: '',
+  designationId: '',
   location: '',
   employmentType: 'FULL_TIME',
   salaryRange: '',
@@ -34,6 +36,8 @@ export default function RecruitmentPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
+  const [catalogReady, setCatalogReady] = useState(false);
   const [applications, setApplications] = useState<any[]>([]);
   const [form, setForm] = useState(emptyJob);
   const [saving, setSaving] = useState(false);
@@ -53,15 +57,18 @@ export default function RecruitmentPage() {
   async function load() {
     setError('');
     try {
-      const [r, s, d, apps] = await Promise.all([
+      const [r, s, d, desigs, apps] = await Promise.all([
         api('/recruitment'),
         api('/recruitment/summary'),
         api('/departments'),
+        api('/designations'),
         api(`/recruitment/applications${statusFilter ? `?status=${statusFilter}` : ''}`),
       ]);
       setRows(Array.isArray(r) ? r : []);
       setSummary(s);
       setDepartments(Array.isArray(d) ? d : []);
+      setDesignations(Array.isArray(desigs) ? desigs : []);
+      setCatalogReady(true);
       const list = Array.isArray(apps) ? apps : [];
       setApplications(list);
       if (!initialTabSet) {
@@ -101,7 +108,9 @@ export default function RecruitmentPage() {
         method: 'POST',
         body: JSON.stringify({
           ...form,
-          departmentId: form.departmentId || undefined,
+          departmentId: form.departmentId,
+          designationId: form.designationId,
+          title: form.title || designations.find((item) => item.id === form.designationId)?.name,
           targetHireDate:
             form.targetHireDate ||
             new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -250,29 +259,54 @@ export default function RecruitmentPage() {
         <>
           <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Post a job</h2>
+            <CatalogHint departments={departments} designations={designations} ready={catalogReady} />
             <form onSubmit={createJob} className="grid" style={{ gap: 12 }}>
               <div className="grid grid-2" style={{ gap: 12 }}>
                 <div className="field">
-                  <label className="label">Title</label>
+                  <label className="label">Department</label>
+                  <select
+                    className="input"
+                    required
+                    value={form.departmentId}
+                    onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label className="label">Designation</label>
+                  <select
+                    className="input"
+                    required
+                    value={form.designationId}
+                    onChange={(e) => {
+                      const designationId = e.target.value;
+                      const name = designations.find((item) => item.id === designationId)?.name || '';
+                      const previous = designations.find((item) => item.id === form.designationId)?.name;
+                      setForm({
+                        ...form,
+                        designationId,
+                        title: !form.title || form.title === previous ? name : form.title,
+                      });
+                    }}
+                  >
+                    <option value="">Select designation</option>
+                    {designations.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label className="label">Public title</label>
                   <input
                     className="input"
                     required
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
                   />
-                </div>
-                <div className="field">
-                  <label className="label">Department</label>
-                  <select
-                    className="input"
-                    value={form.departmentId}
-                    onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-                  >
-                    <option value="">—</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
                 </div>
                 <div className="field">
                   <label className="label">Location</label>
@@ -372,7 +406,12 @@ export default function RecruitmentPage() {
                         {p.location || '—'} · {p.employmentType?.replace('_', ' ')}
                       </div>
                     </td>
-                    <td>{p.department?.name || '—'}</td>
+                    <td>
+                      {p.department?.name || '—'}
+                      {p.designation?.name ? (
+                        <div className="muted" style={{ fontSize: 12 }}>{p.designation.name}</div>
+                      ) : null}
+                    </td>
                     <td>
                       {p.isPublic ? (
                         <a

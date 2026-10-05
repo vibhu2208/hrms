@@ -44,6 +44,15 @@ export enum AttendanceStatus {
   WFH = 'WFH',
   HOLIDAY = 'HOLIDAY',
   LEAVE = 'LEAVE',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  REJECTED = 'REJECTED',
+}
+
+export enum AttendanceApprovalStatus {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
 }
 
 export enum LeaveStatus {

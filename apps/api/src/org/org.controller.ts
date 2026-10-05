@@ -20,6 +20,18 @@ export class OrgController {
     return this.org.createDepartment(body.name, body.code);
   }
 
+  @Patch('departments/:id')
+  @Roles('OWNER', 'HR')
+  updateDept(@Param('id') id: string, @Body() body: { name?: string; code?: string }) {
+    return this.org.updateDepartment(id, body);
+  }
+
+  @Delete('departments/:id')
+  @Roles('OWNER', 'HR')
+  deleteDept(@Param('id') id: string) {
+    return this.org.deleteDepartment(id);
+  }
+
   @Get('designations')
   designations() {
     return this.org.designations();
@@ -29,6 +41,18 @@ export class OrgController {
   @Roles('OWNER', 'HR')
   createDesig(@Body() body: { name: string }) {
     return this.org.createDesignation(body.name);
+  }
+
+  @Patch('designations/:id')
+  @Roles('OWNER', 'HR')
+  updateDesig(@Param('id') id: string, @Body() body: { name?: string }) {
+    return this.org.updateDesignation(id, body.name || '');
+  }
+
+  @Delete('designations/:id')
+  @Roles('OWNER', 'HR')
+  deleteDesig(@Param('id') id: string) {
+    return this.org.deleteDesignation(id);
   }
 
   @Get('roles')

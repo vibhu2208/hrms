@@ -1,8 +1,10 @@
 'use client';
 
-import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, getStoredUser } from '@/lib/api';
+import { DocumentPreview } from '@/components/document-preview';
+import { CatalogHint } from '@/components/catalog-hint';
 
 const DOC_KINDS = [
   'ID_PROOF',
@@ -36,12 +38,12 @@ function OnboardingPageInner() {
   const user = getStoredUser();
   const isOwner = user?.role?.code === 'OWNER';
 
-  const [pending, setPending] = useState<any[]>([]);
   const [all, setAll] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
   const [departments, setDepartments] = useState<any[]>([]);
   const [designations, setDesignations] = useState<any[]>([]);
+  const [catalogReady, setCatalogReady] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -51,7 +53,6 @@ function OnboardingPageInner() {
     lastName: '',
     email: '',
     phone: '',
-    employeeCode: '',
     roleCode: 'EMPLOYEE',
     joiningDate: '',
     departmentId: '',
@@ -60,25 +61,76 @@ function OnboardingPageInner() {
   });
 
   const [offerForm, setOfferForm] = useState({ subject: '', message: '' });
-  const [docForm, setDocForm] = useState({ kind: 'ID_PROOF', title: '', url: '' });
-  const [accountForm, setAccountForm] = useState({ password: 'password123', employeeCode: '' });
+  const [docForm, setDocForm] = useState({ kind: 'ID_PROOF', title: '' });
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
+  const details = useRef<Record<string, any>>({});
 
   const load = useCallback(async () => {
-    const [p, a, deps, desigs] = await Promise.all([
-      api('/onboarding/pending'),
+    const [cases, deps, desigs] = await Promise.all([
       api('/onboarding'),
       api('/departments'),
       api('/designations'),
     ]);
-    setPending(p);
-    setAll(a);
+    setAll(cases);
     setDepartments(deps);
     setDesignations(desigs);
+    setCatalogReady(true);
   }, []);
 
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, [load]);
+
+  const pending = useMemo(
+    () => all.filter((row) => row.status === 'PENDING_OWNER'),
+    [all],
+  );
+
+  function patchList(updated: any) {
+    if (!updated?.id) return;
+    setAll((rows) => {
+      const row = {
+        id: updated.id,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        email: updated.email,
+        joiningDate: updated.joiningDate,
+        status: updated.status,
+        employeeCode: updated.employeeCode ?? undefined,
+        createdAt: updated.createdAt,
+      };
+      const index = rows.findIndex((item) => item.id === updated.id);
+      if (index === -1) return [row, ...rows];
+      const next = rows.slice();
+      next[index] = { ...rows[index], ...row };
+      return next;
+    });
+  }
+
+  function applyCase(updated: any) {
+    if (!updated?.id) return;
+    patchList(updated);
+    setDetail((current) => {
+      const base = current?.id === updated.id ? current : details.current[updated.id];
+      if (!base) return current;
+      const next = {
+        ...base,
+        ...updated,
+        documents: updated.documents ?? base.documents,
+        checklistItems: updated.checklistItems ?? base.checklistItems,
+        employee: updated.employee ?? base.employee,
+      };
+      details.current[updated.id] = next;
+      return current?.id === updated.id ? next : current;
+    });
+    if (selectedId === updated.id && (updated.offerSubject || updated.offerBody)) {
+      setOfferForm({
+        subject: updated.offerSubject,
+        message: updated.offerBody,
+      });
+    }
+  }
 
   useEffect(() => {
     const first = searchParams.get('firstName') || '';
@@ -103,8 +155,20 @@ function OnboardingPageInner() {
     setSelectedId(id);
     setError('');
     setMsg('');
+    const cached = details.current[id];
+    if (cached) {
+      setDetail(cached);
+      setOfferForm({
+        subject: cached.offerSubject || `Offer of employment — ${cached.firstName} ${cached.lastName}`,
+        message:
+          cached.offerBody ||
+          `Hi ${cached.firstName},\n\nWe are pleased to offer you a position at Go Staff, with a proposed joining date of ${new Date(cached.joiningDate).toLocaleDateString()}.\n\nOur HR team will follow up with documentation and next steps.\n\nCongratulations!\n\nBest regards,\nHR Team — Go Staff`,
+      });
+      return;
+    }
     try {
       const d = await api(`/onboarding/${id}`);
+      details.current[id] = d;
       setDetail(d);
       setOfferForm({
         subject: d.offerSubject || `Offer of employment — ${d.firstName} ${d.lastName}`,
@@ -112,20 +176,9 @@ function OnboardingPageInner() {
           d.offerBody ||
           `Hi ${d.firstName},\n\nWe are pleased to offer you a position at Go Staff, with a proposed joining date of ${new Date(d.joiningDate).toLocaleDateString()}.\n\nOur HR team will follow up with documentation and next steps.\n\nCongratulations!\n\nBest regards,\nHR Team — Go Staff`,
       });
-      setAccountForm({
-        password: 'password123',
-        employeeCode: d.employeeCode || '',
-      });
     } catch (e: any) {
       setError(e.message);
     }
-  }
-
-  async function refreshSelected() {
-    if (!selectedId) return;
-    const d = await api(`/onboarding/${selectedId}`);
-    setDetail(d);
-    await load();
   }
 
   async function createCase(e: FormEvent) {
@@ -140,7 +193,6 @@ function OnboardingPageInner() {
           ...form,
           departmentId: form.departmentId || undefined,
           designationId: form.designationId || undefined,
-          employeeCode: form.employeeCode || undefined,
           phone: form.phone || undefined,
           applicationId: form.applicationId || undefined,
         }),
@@ -151,15 +203,17 @@ function OnboardingPageInner() {
         lastName: '',
         email: '',
         phone: '',
-        employeeCode: '',
         roleCode: 'EMPLOYEE',
         joiningDate: '',
         departmentId: '',
         designationId: '',
         applicationId: '',
       });
-      await load();
-      await selectCase(created.id);
+      const opened = { ...created, documents: created.documents || [], checklistItems: created.checklistItems || [] };
+      details.current[opened.id] = opened;
+      patchList(opened);
+      setSelectedId(opened.id);
+      setDetail(opened);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -171,16 +225,100 @@ function OnboardingPageInner() {
     setBusy(true);
     setError('');
     try {
-      await api(`/onboarding/${id}/review`, {
+      const updated = await api(`/onboarding/${id}/review`, {
         method: 'PATCH',
         body: JSON.stringify({ action }),
       });
-      await load();
-      if (selectedId === id) await refreshSelected();
+      applyCase(updated);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadDocument() {
+    if (!selectedId || !docFile) {
+      setError('Choose a file to upload');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setMsg('');
+    try {
+      const body = new FormData();
+      body.append('file', docFile);
+      body.append('kind', docForm.kind);
+      body.append('title', docForm.title || docFile.name);
+      const doc = await api(`/onboarding/${selectedId}/documents/file`, { method: 'POST', formData: body });
+      setDocFile(null);
+      setFileKey((n) => n + 1);
+      setDocForm({ kind: 'ID_PROOF', title: '' });
+      setMsg('Document stored');
+      setDetail((current) => {
+        if (!current) return current;
+        const next = { ...current, documents: [doc, ...(current.documents || [])] };
+        details.current[current.id] = next;
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeOnboarding() {
+    if (!selectedId) return;
+    setBusy(true);
+    setError('');
+    setMsg('');
+    try {
+      const updated = await api<any>(`/onboarding/${selectedId}/advance`, { method: 'PATCH' });
+      const mailed = updated?.emailResult?.delivered;
+      setMsg(
+        mailed
+          ? `Onboarding complete. Login details emailed to ${updated.email}.`
+          : 'Onboarding complete.',
+      );
+      applyCase(updated);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleChecklist(itemId: string, completed: boolean) {
+    if (!selectedId) return;
+    setError('');
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            checklistItems: current.checklistItems?.map((item: any) =>
+              item.id === itemId ? { ...item, completed } : item,
+            ),
+          }
+        : current,
+    );
+    try {
+      await api(`/onboarding/${selectedId}/items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed }),
+      });
+    } catch (err: any) {
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              checklistItems: current.checklistItems?.map((item: any) =>
+                item.id === itemId ? { ...item, completed: !completed } : item,
+              ),
+            }
+          : current,
+      );
+      setError(err.message);
     }
   }
 
@@ -190,12 +328,12 @@ function OnboardingPageInner() {
     setError('');
     setMsg('');
     try {
-      await api(`/onboarding/${selectedId}${path}`, {
+      const updated = await api(`/onboarding/${selectedId}${path}`, {
         method,
         body: body ? JSON.stringify(body) : undefined,
       });
       setMsg('Updated');
-      await refreshSelected();
+      applyCase(updated);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -256,6 +394,7 @@ function OnboardingPageInner() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Start onboarding</h2>
+        <CatalogHint departments={departments} designations={designations} ready={catalogReady} />
         <form onSubmit={createCase} style={{ display: 'grid', gap: 10 }}>
           <div className="grid grid-2" style={{ gap: 10 }}>
             <div className="field">
@@ -309,12 +448,8 @@ function OnboardingPageInner() {
               />
             </div>
             <div className="field">
-              <label className="label">Employee code (optional)</label>
-              <input
-                className="input"
-                value={form.employeeCode}
-                onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
-              />
+              <label className="label">Employee code</label>
+              <input className="input" value="Assigned in series when the account is created" readOnly />
             </div>
           </div>
           <div className="grid grid-2" style={{ gap: 10 }}>
@@ -322,10 +457,11 @@ function OnboardingPageInner() {
               <label className="label">Department</label>
               <select
                 className="input"
+                required
                 value={form.departmentId}
                 onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
               >
-                <option value="">—</option>
+                <option value="">Select department</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -337,15 +473,30 @@ function OnboardingPageInner() {
               <label className="label">Designation</label>
               <select
                 className="input"
+                required
                 value={form.designationId}
                 onChange={(e) => setForm({ ...form, designationId: e.target.value })}
               >
-                <option value="">—</option>
+                <option value="">Select designation</option>
                 {designations.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label">Access role</label>
+              <select
+                className="input"
+                value={form.roleCode}
+                onChange={(e) => setForm({ ...form, roleCode: e.target.value })}
+              >
+                <option value="EMPLOYEE">Employee</option>
+                <option value="TEAM_LEADER">Team leader</option>
+                <option value="DEPT_MANAGER">Department manager</option>
+                <option value="HR">HR</option>
+                <option value="MANAGEMENT">Management</option>
               </select>
             </div>
           </div>
@@ -406,6 +557,15 @@ function OnboardingPageInner() {
                   {detail.firstName} {detail.lastName}
                 </strong>
                 <div className="muted">{detail.email}</div>
+                <div className="muted">
+                  {[
+                    detail.designation?.name || designations.find((d) => d.id === detail.designationId)?.name,
+                    detail.department?.name || departments.find((d) => d.id === detail.departmentId)?.name,
+                    detail.roleCode,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
                 <span className={`badge ${badgeClass(detail.status)}`} style={{ marginTop: 6 }}>
                   {detail.status}
                 </span>
@@ -469,73 +629,52 @@ function OnboardingPageInner() {
                 </div>
               )}
 
-              {(detail.status === 'DOCUMENTS' ||
+              {(detail.documents?.length > 0 ||
+                detail.status === 'DOCUMENTS' ||
                 detail.status === 'CREATE_ACCOUNT' ||
                 detail.status === 'IT_HR_CHECKLIST' ||
-                detail.status === 'OFFER_LETTER') && (
+                detail.status === 'OFFER_LETTER' ||
+                detail.status === 'COMPLETED') && (
                 <div style={{ display: 'grid', gap: 8 }}>
                   <h3 style={{ margin: 0, fontSize: '1rem' }}>Documents</h3>
-                  {detail.documents?.length ? (
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Kind</th>
-                          <th>Title</th>
-                          <th>Link</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.documents.map((d: any) => (
-                          <tr key={d.id}>
-                            <td>{d.kind}</td>
-                            <td>{d.title}</td>
-                            <td>
-                              <a href={d.url} target="_blank" rel="noreferrer">
-                                Open
-                              </a>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <p className="muted">No documents yet</p>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Files are stored in the Onborading_docs bucket and stay with this person after
+                    they become an employee.
+                  </p>
+                  <DocumentPreview documents={detail.documents || []} />
+                  {detail.status !== 'REJECTED' && detail.status !== 'CANCELLED' && detail.status !== 'PENDING_OWNER' && (
+                    <>
+                      <div className="grid grid-2" style={{ gap: 8 }}>
+                        <select
+                          className="input"
+                          value={docForm.kind}
+                          onChange={(e) => setDocForm({ ...docForm, kind: e.target.value })}
+                        >
+                          {DOC_KINDS.map((k) => (
+                            <option key={k} value={k}>
+                              {k.replace(/_/g, ' ')}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          className="input"
+                          placeholder="Title (optional)"
+                          value={docForm.title}
+                          onChange={(e) => setDocForm({ ...docForm, title: e.target.value })}
+                        />
+                      </div>
+                      <input
+                        key={fileKey}
+                        className="input"
+                        type="file"
+                        accept="application/pdf,image/*,.doc,.docx"
+                        onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                      />
+                      <button className="btn secondary" disabled={busy || !docFile} onClick={uploadDocument}>
+                        Upload document
+                      </button>
+                    </>
                   )}
-                  <div className="grid grid-2" style={{ gap: 8 }}>
-                    <select
-                      className="input"
-                      value={docForm.kind}
-                      onChange={(e) => setDocForm({ ...docForm, kind: e.target.value })}
-                    >
-                      {DOC_KINDS.map((k) => (
-                        <option key={k} value={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      className="input"
-                      placeholder="Title"
-                      value={docForm.title}
-                      onChange={(e) => setDocForm({ ...docForm, title: e.target.value })}
-                    />
-                  </div>
-                  <input
-                    className="input"
-                    placeholder="Document URL"
-                    value={docForm.url}
-                    onChange={(e) => setDocForm({ ...docForm, url: e.target.value })}
-                  />
-                  <button
-                    className="btn secondary"
-                    disabled={busy}
-                    onClick={async () => {
-                      await run('/documents', 'POST', docForm);
-                      setDocForm({ kind: 'ID_PROOF', title: '', url: '' });
-                    }}
-                  >
-                    Add document
-                  </button>
                   {detail.status === 'DOCUMENTS' && (
                     <button className="btn" disabled={busy} onClick={() => run('/advance', 'PATCH')}>
                       Advance to create account
@@ -547,31 +686,17 @@ function OnboardingPageInner() {
               {detail.status === 'CREATE_ACCOUNT' && (
                 <div style={{ display: 'grid', gap: 8 }}>
                   <h3 style={{ margin: 0, fontSize: '1rem' }}>Create employee account</h3>
-                  <div className="field">
-                    <label className="label">Employee code</label>
-                    <input
-                      className="input"
-                      value={accountForm.employeeCode}
-                      onChange={(e) =>
-                        setAccountForm({ ...accountForm, employeeCode: e.target.value })
-                      }
-                      placeholder="Auto if blank"
-                    />
-                  </div>
-                  <div className="field">
-                    <label className="label">Temp password</label>
-                    <input
-                      className="input"
-                      value={accountForm.password}
-                      onChange={(e) => setAccountForm({ ...accountForm, password: e.target.value })}
-                    />
-                  </div>
+                  <p className="muted" style={{ margin: 0 }}>
+                    This adds them to Employees in the portal. The next employee code in the series
+                    is assigned automatically. Their employee ID and a temporary password are emailed
+                    when onboarding is marked complete.
+                  </p>
                   <button
                     className="btn"
                     disabled={busy}
-                    onClick={() => run('/create-account', 'POST', accountForm)}
+                    onClick={() => run('/create-account', 'POST')}
                   >
-                    Create account
+                    Create portal account
                   </button>
                 </div>
               )}
@@ -584,22 +709,29 @@ function OnboardingPageInner() {
                       <input
                         type="checkbox"
                         checked={item.completed}
-                        disabled={busy}
-                        onChange={(e) =>
-                          run(`/items/${item.id}`, 'PATCH', { completed: e.target.checked })
-                        }
+                        onChange={(e) => toggleChecklist(item.id, e.target.checked)}
                       />
                       {item.title}
                     </label>
                   ))}
-                  <button className="btn" disabled={busy} onClick={() => run('/advance', 'PATCH')}>
-                    Mark onboarding complete
+                  <p className="muted" style={{ margin: 0 }}>
+                    Completing onboarding creates the portal login if it is missing, then emails
+                    the employee their employee ID, login email, and a temporary password.
+                  </p>
+                  <button className="btn" disabled={busy} onClick={() => completeOnboarding()}>
+                    Complete and email login
                   </button>
                 </div>
               )}
 
               {detail.status === 'COMPLETED' && (
-                <p className="muted">Onboarding completed. Employee account is active.</p>
+                <p className="muted">
+                  Onboarding completed
+                  {detail.employee?.employeeCode || detail.employeeCode
+                    ? ` (${detail.employee?.employeeCode || detail.employeeCode})`
+                    : ''}
+                  . This person is in Employees, with their documents kept on their profile.
+                </p>
               )}
             </div>
           )}

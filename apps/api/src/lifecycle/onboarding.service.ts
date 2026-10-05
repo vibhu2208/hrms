@@ -9,6 +9,8 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
 import { UsersService } from '../users/users.service';
+import { OrgService } from '../org/org.service';
+import { StorageService } from '../storage/storage.service';
 
 const ONBOARDING_CHECKLIST = [
   'Provision laptop / workstation',
@@ -18,14 +20,36 @@ const ONBOARDING_CHECKLIST = [
   'Assign buddy / manager intro',
 ];
 
-const includeAll = {
-  documents: { orderBy: { uploadedAt: 'desc' as const } },
-  checklistItems: { orderBy: { order: 'asc' as const } },
-  requestedBy: { select: { id: true, email: true } },
-  ownerApprover: { select: { id: true, email: true } },
-  employee: true,
-  application: { include: { position: true } },
-};
+const listSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  joiningDate: true,
+  status: true,
+  employeeCode: true,
+  createdAt: true,
+} as const;
+
+const caseSelect = {
+  id: true,
+  status: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  phone: true,
+  employeeCode: true,
+  roleCode: true,
+  joiningDate: true,
+  departmentId: true,
+  designationId: true,
+  managerId: true,
+  employeeId: true,
+  requestedById: true,
+  offerSentAt: true,
+  checklistItems: { select: { id: true, completed: true, title: true, order: true }, orderBy: { order: 'asc' as const } },
+  employee: { select: { id: true, userId: true, employeeCode: true } },
+} as const;
 
 @Injectable()
 export class OnboardingService {
@@ -35,6 +59,8 @@ export class OnboardingService {
     private notifications: NotificationsService,
     private email: EmailService,
     private users: UsersService,
+    private storage: StorageService,
+    private org: OrgService,
   ) {}
 
   private async notifyOwners(title: string, body: string) {
@@ -89,6 +115,8 @@ export class OnboardingService {
       throw new BadRequestException('A user with this email already exists');
     }
 
+    await this.org.requirePlacement(data.departmentId, data.designationId);
+
     const request = await this.prisma.onboardingRequest.create({
       data: {
         firstName: data.firstName.trim(),
@@ -105,7 +133,6 @@ export class OnboardingService {
         requestedById,
         status: OnboardingStatus.PENDING_OWNER,
       },
-      include: includeAll,
     });
 
     await this.audit.log({
@@ -126,9 +153,18 @@ export class OnboardingService {
   list(status?: OnboardingStatus) {
     return this.prisma.onboardingRequest.findMany({
       where: status ? { status } : undefined,
-      include: includeAll,
+      select: listSelect,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  private async requireCase(id: string) {
+    const req = await this.prisma.onboardingRequest.findUnique({
+      where: { id },
+      select: caseSelect,
+    });
+    if (!req) throw new NotFoundException('Onboarding request not found');
+    return req;
   }
 
   pending() {
@@ -138,10 +174,22 @@ export class OnboardingService {
   async findOne(id: string) {
     const req = await this.prisma.onboardingRequest.findUnique({
       where: { id },
-      include: includeAll,
+      include: {
+        documents: { orderBy: { uploadedAt: 'desc' } },
+        checklistItems: { orderBy: { order: 'asc' } },
+        requestedBy: { select: { id: true, email: true } },
+        ownerApprover: { select: { id: true, email: true } },
+        employee: true,
+        application: { include: { position: true } },
+      },
     });
     if (!req) throw new NotFoundException('Onboarding request not found');
-    return req;
+    const placement = await this.org.placementNames(req.departmentId, req.designationId);
+    return {
+      ...req,
+      ...placement,
+      documents: await this.storage.attachPreviewUrls(req.documents),
+    };
   }
 
   async review(
@@ -150,7 +198,7 @@ export class OnboardingService {
     ownerUserId: string,
     note?: string,
   ) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (req.status !== OnboardingStatus.PENDING_OWNER) {
       throw new BadRequestException('Request is not pending owner approval');
     }
@@ -163,7 +211,6 @@ export class OnboardingService {
           ownerApproverId: ownerUserId,
           reviewNote: note,
         },
-        include: includeAll,
       });
       await this.audit.log({
         actorId: ownerUserId,
@@ -191,7 +238,7 @@ export class OnboardingService {
           create: ONBOARDING_CHECKLIST.map((title, order) => ({ title, order })),
         },
       },
-      include: includeAll,
+      include: { checklistItems: { orderBy: { order: 'asc' } } },
     });
 
     await this.audit.log({
@@ -217,7 +264,7 @@ export class OnboardingService {
     actorId: string,
     body?: { subject?: string; message?: string },
   ) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (req.status !== OnboardingStatus.OFFER_LETTER) {
       throw new BadRequestException('Request is not in offer letter stage');
     }
@@ -246,7 +293,6 @@ export class OnboardingService {
         offerBody: text,
         offerSentAt: new Date(),
       },
-      include: includeAll,
     });
 
     await this.audit.log({
@@ -261,7 +307,7 @@ export class OnboardingService {
   }
 
   async markOfferAccepted(id: string, actorId: string) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (req.status !== OnboardingStatus.OFFER_LETTER) {
       throw new BadRequestException('Request is not in offer letter stage');
     }
@@ -275,7 +321,6 @@ export class OnboardingService {
         status: OnboardingStatus.DOCUMENTS,
         offerAcceptedAt: new Date(),
       },
-      include: includeAll,
     });
 
     await this.audit.log({
@@ -293,7 +338,7 @@ export class OnboardingService {
     data: { kind?: LifecycleDocumentKind; title: string; url: string },
     actorId: string,
   ) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (
       req.status !== OnboardingStatus.DOCUMENTS &&
       req.status !== OnboardingStatus.OFFER_LETTER &&
@@ -306,9 +351,10 @@ export class OnboardingService {
       throw new BadRequestException('Title and URL are required');
     }
 
-    await this.prisma.lifecycleDocument.create({
+    const doc = await this.prisma.lifecycleDocument.create({
       data: {
         onboardingId: id,
+        employeeId: req.employeeId,
         kind: data.kind || LifecycleDocumentKind.OTHER,
         title: data.title.trim(),
         url: data.url.trim(),
@@ -322,17 +368,89 @@ export class OnboardingService {
       resourceId: id,
     });
 
-    return this.findOne(id);
+    const [withPreview] = await this.storage.attachPreviewUrls([doc]);
+    return withPreview;
+  }
+
+  async uploadDocument(
+    id: string,
+    file: { buffer: Buffer; mimetype: string; originalname: string; size: number },
+    data: { kind?: string; title?: string },
+    actorId: string,
+  ) {
+    const req = await this.requireCase(id);
+    if (
+      req.status !== OnboardingStatus.DOCUMENTS &&
+      req.status !== OnboardingStatus.OFFER_LETTER &&
+      req.status !== OnboardingStatus.CREATE_ACCOUNT &&
+      req.status !== OnboardingStatus.IT_HR_CHECKLIST &&
+      req.status !== OnboardingStatus.COMPLETED
+    ) {
+      throw new BadRequestException('Cannot add documents in current stage');
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Choose a file to upload');
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      throw new BadRequestException('File must be 15 MB or smaller');
+    }
+
+    const allowed = new Set([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]);
+    if (!allowed.has(file.mimetype)) {
+      throw new BadRequestException('Upload a PDF, image, or Word document');
+    }
+
+    const safeName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 80);
+    const storagePath = `${id}/${Date.now()}-${safeName}`;
+    await this.storage.upload(storagePath, file.buffer, file.mimetype);
+
+    const kind = (Object.values(LifecycleDocumentKind) as string[]).includes(data.kind || '')
+      ? (data.kind as LifecycleDocumentKind)
+      : LifecycleDocumentKind.OTHER;
+
+    const title = data.title?.trim() || file.originalname || 'Document';
+    const doc = await this.prisma.lifecycleDocument.create({
+      data: {
+        onboardingId: id,
+        employeeId: req.employeeId,
+        kind,
+        title,
+        url: storagePath,
+        storagePath,
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+      },
+    });
+
+    await this.audit.log({
+      actorId,
+      action: 'ONBOARDING_DOCUMENT_UPLOAD',
+      resource: 'ONBOARDING',
+      resourceId: id,
+      metadata: { storagePath, bucket: this.storage.bucket() },
+    });
+
+    const [withPreview] = await this.storage.attachPreviewUrls([doc]);
+    return withPreview;
   }
 
   async advance(id: string, actorId: string) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
 
     if (req.status === OnboardingStatus.DOCUMENTS) {
       const updated = await this.prisma.onboardingRequest.update({
         where: { id },
         data: { status: OnboardingStatus.CREATE_ACCOUNT },
-        include: includeAll,
       });
       await this.audit.log({
         actorId,
@@ -351,18 +469,50 @@ export class OnboardingService {
           `Complete all checklist items first (${pending.length} remaining)`,
         );
       }
+
+      let employeeId = req.employeeId;
+      let userId = req.employee?.userId;
+      if (!employeeId) {
+        const created = await this.provisionAccount(req, actorId);
+        employeeId = created.employeeId;
+        userId = created.employee?.userId;
+      }
+
+      if (!userId) {
+        throw new BadRequestException('Employee portal account could not be created');
+      }
+
+      const creds = await this.users.issueTemporaryPassword(userId);
+      const emailResult = await this.users.sendPortalCredentials({
+        to: creds.email,
+        firstName: creds.firstName || req.firstName,
+        employeeCode: creds.employeeCode || req.employeeCode || '',
+        password: creds.password,
+      });
+
+      if (!emailResult.delivered) {
+        const reason = emailResult.error ? `: ${emailResult.error}` : '. Check mail settings and try again';
+        throw new BadRequestException(
+          `Portal account ${creds.employeeCode} is ready, but the login email was not sent${reason}.`,
+        );
+      }
+
       const updated = await this.prisma.onboardingRequest.update({
         where: { id },
         data: { status: OnboardingStatus.COMPLETED },
-        include: includeAll,
       });
       await this.audit.log({
         actorId,
         action: 'ONBOARDING_COMPLETE',
         resource: 'ONBOARDING',
         resourceId: id,
+        metadata: {
+          employeeId,
+          delivered: emailResult.delivered,
+          mode: emailResult.mode,
+        },
       });
-      return updated;
+      return { ...updated, emailResult };
     }
 
     throw new BadRequestException('Cannot advance from current stage');
@@ -373,26 +523,26 @@ export class OnboardingService {
     actorId: string,
     body?: { password?: string; employeeCode?: string },
   ) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (req.status !== OnboardingStatus.CREATE_ACCOUNT) {
       throw new BadRequestException('Request is not in create-account stage');
     }
     if (req.employeeId) {
       throw new BadRequestException('Account already created');
     }
+    return this.provisionAccount(req, actorId, body);
+  }
 
-    const employeeCode =
-      body?.employeeCode?.trim() ||
-      req.employeeCode?.trim() ||
-      `GS-${Date.now().toString().slice(-6)}`;
-    const password = body?.password?.trim() || 'password123';
-
+  private async provisionAccount(
+    req: { id: string; email: string; firstName: string; lastName: string; phone: string | null; joiningDate: Date; departmentId: string | null; designationId: string | null; managerId: string | null; roleCode: string; employeeCode: string | null },
+    actorId: string,
+    body?: { password?: string; employeeCode?: string },
+  ) {
     const user = await this.users.create(
       {
         email: req.email,
-        password,
+        password: body?.password?.trim() || undefined,
         roleCode: req.roleCode,
-        employeeCode,
         firstName: req.firstName,
         lastName: req.lastName,
         phone: req.phone || undefined,
@@ -403,26 +553,34 @@ export class OnboardingService {
       },
       actorId,
     );
+    const employeeCode = user.employee?.employeeCode || '';
+
+    await this.prisma.lifecycleDocument.updateMany({
+      where: { onboardingId: req.id },
+      data: { employeeId: user.employee!.id },
+    });
 
     const updated = await this.prisma.onboardingRequest.update({
-      where: { id },
+      where: { id: req.id },
       data: {
         employeeId: user.employee!.id,
         employeeCode,
         status: OnboardingStatus.IT_HR_CHECKLIST,
       },
-      include: includeAll,
     });
 
     await this.audit.log({
       actorId,
       action: 'ONBOARDING_ACCOUNT_CREATED',
       resource: 'ONBOARDING',
-      resourceId: id,
+      resourceId: req.id,
       metadata: { employeeId: user.employee!.id },
     });
 
-    return updated;
+    return {
+      ...updated,
+      employee: user.employee,
+    };
   }
 
   async toggleChecklistItem(
@@ -431,14 +589,16 @@ export class OnboardingService {
     completed: boolean,
     actorId: string,
   ) {
-    const req = await this.findOne(id);
-    if (req.status !== OnboardingStatus.IT_HR_CHECKLIST) {
+    const item = await this.prisma.lifecycleChecklistItem.findFirst({
+      where: { id: itemId, onboardingId: id },
+      select: { id: true, onboarding: { select: { status: true } } },
+    });
+    if (!item) throw new NotFoundException('Checklist item not found');
+    if (item.onboarding?.status !== OnboardingStatus.IT_HR_CHECKLIST) {
       throw new BadRequestException('Checklist is only editable in IT/HR stage');
     }
-    const item = req.checklistItems.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Checklist item not found');
 
-    await this.prisma.lifecycleChecklistItem.update({
+    const updated = await this.prisma.lifecycleChecklistItem.update({
       where: { id: itemId },
       data: { completed },
     });
@@ -451,11 +611,11 @@ export class OnboardingService {
       metadata: { itemId, completed },
     });
 
-    return this.findOne(id);
+    return updated;
   }
 
   async cancel(id: string, actorId: string) {
-    const req = await this.findOne(id);
+    const req = await this.requireCase(id);
     if (
       req.status === OnboardingStatus.COMPLETED ||
       req.status === OnboardingStatus.REJECTED ||
@@ -467,7 +627,6 @@ export class OnboardingService {
     const updated = await this.prisma.onboardingRequest.update({
       where: { id },
       data: { status: OnboardingStatus.CANCELLED },
-      include: includeAll,
     });
 
     await this.audit.log({

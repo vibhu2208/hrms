@@ -24,6 +24,15 @@ enum AttendanceStatus {
   WFH
   HOLIDAY
   LEAVE
+  PENDING_APPROVAL
+  REJECTED
+}
+
+enum AttendanceApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum LeaveStatus {
@@ -32,6 +41,12 @@ enum LeaveStatus {
   REJECTED
   CLARIFICATION
   CANCELLED
+}
+
+enum LeaveFrequency {
+  YEARLY
+  MONTHLY
+  QUARTERLY
 }
 
 enum TaskStatus {
@@ -134,6 +149,30 @@ enum EmploymentType {
   INTERN
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum BloodGroup {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
 enum ApplicationStatus {
   APPLIED
   SCREENING
@@ -187,14 +226,16 @@ model Department {
   updatedAt DateTime   @updatedAt
   employees Employee[]
   positions JobPosition[]
+  leaveAllocations LeaveAllocation[]
 }
 
 model Designation {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
   employees Employee[]
+  positions JobPosition[]
 }
 
 model Role {
@@ -231,10 +272,17 @@ model User {
   updatedAt    DateTime  @updatedAt
   auditLogs    AuditLog[] @relation("AuditActor")
   notifications Notification[]
+  attendanceDecisions Attendance[] @relation("AttendanceApprover")
   onboardingRequested  OnboardingRequest[]  @relation("OnboardingRequester")
   onboardingApproved   OnboardingRequest[]  @relation("OnboardingApprover")
   offboardingRequested OffboardingRequest[] @relation("OffboardingRequester")
   offboardingApproved  OffboardingRequest[] @relation("OffboardingApprover")
+  microsoftAccount     MicrosoftAccount?
+}
+
+model EmployeeCodeSequence {
+  id         String @id @default("default")
+  lastIssued Int    @default(0)
 }
 
 model Employee {
@@ -244,10 +292,31 @@ model Employee {
   employeeCode     String       @unique
   firstName        String
   lastName         String
-  phone            String?
-  photoUrl         String?
+  gender           Gender?
   dateOfBirth      DateTime?
+  bloodGroup       BloodGroup?
+  maritalStatus    MaritalStatus?
+  fatherOrSpouseName String?
+  phone            String?
+  alternatePhone   String?
+  personalEmail    String?
+  photoUrl         String?
+  currentAddress   String?
+  city             String?
+  state            String?
+  pincode          String?
+  permanentAddress String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  aadhaarNumber    String?
+  panNumber        String?
   joiningDate      DateTime
+  employmentType   EmploymentType @default(FULL_TIME)
+  workLocation     String?
+  bankName         String?
+  bankAccountNumber String?
+  bankIfsc         String?
   departmentId     String?
   department       Department?  @relation(fields: [departmentId], references: [id])
   designationId    String?
@@ -273,32 +342,94 @@ model Employee {
   leads            Lead[]
   onboardingRequests  OnboardingRequest[]
   offboardingRequests OffboardingRequest[]
+  documents           LifecycleDocument[]
+  leaveAllocations    LeaveAllocation[]
+}
+
+model AttendancePolicy {
+  id                      String   @id @default("default")
+  officeLatitude          Float?
+  officeLongitude         Float?
+  allowedRadiusMeters     Int      @default(100)
+  authorizedIps           String[] @default([])
+  requireLocation         Boolean  @default(true)
+  requireNetwork          Boolean  @default(true)
+  hrApprovalForExceptions Boolean  @default(true)
+  shiftStart              String?
+  shiftEnd                String?
+  updatedAt               DateTime @updatedAt
 }
 
 model Attendance {
-  id          String           @id @default(cuid())
-  employeeId  String
-  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date        DateTime        
-  checkIn     DateTime?
-  checkOut    DateTime?
-  status      AttendanceStatus @default(PRESENT)
-  workingMinutes Int?
-  notes       String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id                 String                   @id @default(cuid())
+  employeeId         String
+  employee           Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date               DateTime
+  checkIn            DateTime?
+  checkOut           DateTime?
+  status             AttendanceStatus         @default(PRESENT)
+  workingMinutes     Int?
+  overtimeMinutes    Int                      @default(0)
+  notes              String?
+  latitude           Float?
+  longitude          Float?
+  locationAccuracy   Float?
+  locationCapturedAt DateTime?
+  officeDistance     Float?
+  locationVerified   Boolean                  @default(false)
+  publicIp           String?
+  networkVerified    Boolean                  @default(false)
+  approvalStatus     AttendanceApprovalStatus @default(NOT_REQUIRED)
+  exceptionReason       String?
+  missedClockOutReason String?
+  proposedCheckOut     DateTime?
+  approvedById          String?
+  approvedBy         User?                    @relation("AttendanceApprover", fields: [approvedById], references: [id])
+  approvedAt         DateTime?
+  rejectionReason    String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@unique([employeeId, date])
   @@index([date])
+  @@index([approvalStatus])
 }
 
 model LeaveType {
-  id        String         @id @default(cuid())
-  name      String         @unique
-  code      String         @unique
-  annualAllocation Int     @default(12)
-  balances  LeaveBalance[]
-  requests  LeaveRequest[]
+  id                 String            @id @default(cuid())
+  name               String            @unique
+  code               String            @unique
+  days               Int               @default(12)
+  annualAllocation   Int               @default(12)
+  frequency          LeaveFrequency    @default(YEARLY)
+  paid               Boolean           @default(true)
+  carryForward       Boolean           @default(false)
+  maxCarryDays       Int               @default(0)
+  maxConsecutiveDays Int?
+  minNoticeDays      Int               @default(0)
+  requiresDocument   Boolean           @default(false)
+  active             Boolean           @default(true)
+  description        String?
+  balances           LeaveBalance[]
+  requests           LeaveRequest[]
+  allocations        LeaveAllocation[]
+}
+
+model LeaveAllocation {
+  id           String      @id @default(cuid())
+  leaveTypeId  String
+  leaveType    LeaveType   @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  employeeId   String?
+  employee     Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  days         Int
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([leaveTypeId, departmentId])
+  @@unique([leaveTypeId, employeeId])
+  @@index([leaveTypeId])
 }
 
 model LeaveBalance {
@@ -504,6 +635,8 @@ model JobPosition {
   publishedAt         DateTime?
   departmentId        String?
   department          Department?       @relation(fields: [departmentId], references: [id])
+  designationId       String?
+  designation         Designation?      @relation(fields: [designationId], references: [id])
   openingDate         DateTime
   targetHireDate      DateTime
   actualHireDate      DateTime?
@@ -690,6 +823,18 @@ model CalendarToken {
   updatedAt    DateTime @updatedAt
 }
 
+model MicrosoftAccount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String
+  refreshToken String   @default("")
+  expiresAt    DateTime
+  scope        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model WebhookEndpoint {
   id        String   @id @default(cuid())
   sourceId  String?
@@ -772,14 +917,20 @@ model LifecycleDocument {
   kind          LifecycleDocumentKind @default(OTHER)
   title         String
   url           String
+  storagePath   String?
+  mimeType      String?
+  fileName      String?
   uploadedAt    DateTime              @default(now())
   onboardingId  String?
   onboarding    OnboardingRequest?    @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
   offboardingId String?
   offboarding   OffboardingRequest?   @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+  employeeId    String?
+  employee      Employee?             @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@index([onboardingId])
   @@index([offboardingId])
+  @@index([employeeId])
 }
 
 model LifecycleChecklistItem {

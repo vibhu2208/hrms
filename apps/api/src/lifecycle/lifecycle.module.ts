@@ -5,9 +5,10 @@ import { OnboardingController } from './onboarding.controller';
 import { OffboardingController } from './offboarding.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
+import { OrgModule } from '../org/org.module';
 
 @Module({
-  imports: [NotificationsModule, UsersModule],
+  imports: [NotificationsModule, UsersModule, OrgModule],
   providers: [OnboardingService, OffboardingService],
   controllers: [OnboardingController, OffboardingController],
   exports: [OnboardingService, OffboardingService],

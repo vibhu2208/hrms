@@ -11,7 +11,7 @@ HRMS + performance + business command center. External Sales, Profit, Accounts, 
 
 ## Quick start
 
-Uses **PostgreSQL** (Neon or local). Set `DATABASE_URL` in `apps/api/.env`.
+Uses **PostgreSQL** (Supabase or local). Set `DATABASE_URL` in `apps/api/.env`.
 
 ```bash
 # 1. Install
@@ -34,7 +34,7 @@ npm run dev
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@gostaff.local | password123 | Owner |
+| connect@aithworld.com | password123 | Owner |
 | hr@gostaff.local | password123 | HR |
 | employee@gostaff.local | password123 | Employee |
 

@@ -31,7 +31,7 @@ export class PerformanceService {
       },
     });
     const good = attendance.filter((a) =>
-      ['PRESENT', 'WFH', 'HOLIDAY', 'LEAVE'].includes(a.status),
+      ['PRESENT', 'EARLY', 'WFH', 'HOLIDAY', 'LEAVE'].includes(a.status),
     ).length;
     const attendanceScore = attendance.length ? (good / attendance.length) * 100 : 85;
     const productivity = Math.min(100, taskCompletion * 0.9 + 10);

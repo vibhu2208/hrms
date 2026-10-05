@@ -39,7 +39,7 @@ export class DashboardService {
   }
 
   async overview() {
-    const [employees, taskStats, recruitment, invoices, leads, orders] =
+    const [employees, taskStats, recruitment, invoices, leads, orders, aging] =
       await Promise.all([
         this.prisma.employee.count(),
         this.tasks.completionStats(),
@@ -47,9 +47,10 @@ export class DashboardService {
         this.prisma.invoice.count(),
         this.prisma.lead.count(),
         this.prisma.order.count(),
+        this.aging(),
       ]);
 
-    const overdueInvoices = await this.aging().then((a) => a.buckets['61-90'] + a.buckets['90+']);
+    const overdueInvoices = aging.buckets['61-90'] + aging.buckets['90+'];
 
     return {
       employees,

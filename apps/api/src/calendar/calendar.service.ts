@@ -1,13 +1,47 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { MicrosoftGraphService } from '../microsoft/microsoft-graph.service';
 
 @Injectable()
 export class CalendarService {
+  private readonly logger = new Logger(CalendarService.name);
+
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private microsoftGraph: MicrosoftGraphService,
   ) {}
+
+  createMeeting(
+    userId: string,
+    input: {
+      subject: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      timeZone?: string;
+      description?: string;
+      attendees?: string[];
+    },
+  ) {
+    return this.microsoftGraph.createMeeting(userId, input);
+  }
+
+  async upcoming(userId: string, timeZone: string, days?: number) {
+    try {
+      return await this.microsoftGraph.upcomingMeetings(userId, timeZone, days);
+    } catch (error) {
+      this.logger.warn(`Upcoming meetings failed: ${error instanceof Error ? error.message : 'unknown'}`);
+      return {
+        status: 'error' as const,
+        timeZone: timeZone || 'UTC',
+        message: 'Microsoft Calendar could not be loaded.',
+        days: [] as string[],
+        meetings: [],
+      };
+    }
+  }
 
   getAuthUrl(userId: string) {
     const clientId = this.config.get('GOOGLE_CLIENT_ID');

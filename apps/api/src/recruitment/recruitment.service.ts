@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { OrgService } from '../org/org.service';
 
 function slugify(title: string) {
   const base = title
@@ -26,6 +27,7 @@ export class RecruitmentService {
   constructor(
     private prisma: PrismaService,
     private email: EmailService,
+    private org: OrgService,
   ) {}
 
   private withFlags<
@@ -54,6 +56,7 @@ export class RecruitmentService {
     const positions = await this.prisma.jobPosition.findMany({
       include: {
         department: true,
+        designation: true,
         _count: { select: { applications: true } },
       },
       orderBy: { openingDate: 'desc' },
@@ -66,6 +69,7 @@ export class RecruitmentService {
       where: { id },
       include: {
         department: true,
+        designation: true,
         _count: { select: { applications: true } },
       },
     });
@@ -73,9 +77,10 @@ export class RecruitmentService {
     return this.withFlags([position])[0];
   }
 
-  create(data: {
+  async create(data: {
     title: string;
     departmentId?: string;
+    designationId?: string;
     openingDate: string;
     targetHireDate: string;
     applicantsCount?: number;
@@ -87,11 +92,13 @@ export class RecruitmentService {
     isPublic?: boolean;
     status?: RecruitmentStatus;
   }) {
+    const placement = await this.org.requirePlacement(data.departmentId, data.designationId);
+    const title = data.title?.trim() || placement.designation.name;
     const isPublic = data.isPublic !== false;
     return this.prisma.jobPosition.create({
       data: {
-        title: data.title,
-        slug: slugify(data.title),
+        title,
+        slug: slugify(title),
         description: data.description,
         location: data.location,
         employmentType: data.employmentType || 'FULL_TIME',
@@ -99,13 +106,14 @@ export class RecruitmentService {
         requirements: data.requirements,
         isPublic,
         publishedAt: isPublic ? new Date() : null,
-        departmentId: data.departmentId || undefined,
+        departmentId: data.departmentId,
+        designationId: data.designationId,
         openingDate: new Date(data.openingDate),
         targetHireDate: new Date(data.targetHireDate),
         applicantsCount: data.applicantsCount ?? 0,
         status: data.status || 'OPEN',
       },
-      include: { department: true },
+      include: { department: true, designation: true },
     });
   }
 
@@ -128,6 +136,7 @@ export class RecruitmentService {
       selectedCount: number;
       rejectedCount: number;
       departmentId: string;
+      designationId: string;
     }>,
   ) {
     const patch: any = { ...data };
@@ -148,7 +157,7 @@ export class RecruitmentService {
     return this.prisma.jobPosition.update({
       where: { id },
       data: patch,
-      include: { department: true },
+      include: { department: true, designation: true },
     });
   }
 
@@ -188,6 +197,7 @@ export class RecruitmentService {
         openingDate: true,
         publishedAt: true,
         department: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
       },
       orderBy: { publishedAt: 'desc' },
     });
@@ -212,6 +222,7 @@ export class RecruitmentService {
         openingDate: true,
         publishedAt: true,
         department: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
       },
     });
     if (!job) throw new NotFoundException('Job not found or no longer open');
@@ -313,7 +324,7 @@ export class RecruitmentService {
       where: { id },
       include: {
         position: {
-          include: { department: true },
+          include: { department: true, designation: true },
         },
       },
     });

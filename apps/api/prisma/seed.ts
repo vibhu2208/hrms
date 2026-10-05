@@ -85,9 +85,9 @@ async function main() {
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const ownerUser = await prisma.user.upsert({
-    where: { email: 'owner@gostaff.local' },
+    where: { email: 'connect@aithworld.com' },
     create: {
-      email: 'owner@gostaff.local',
+      email: 'connect@aithworld.com',
       passwordHash,
       roleId: ownerRole.id,
       employee: {
@@ -162,7 +162,7 @@ async function main() {
   ] as const) {
     await prisma.leaveType.upsert({
       where: { code },
-      create: { name, code, annualAllocation: alloc },
+      create: { name, code, days: alloc, annualAllocation: alloc, frequency: 'YEARLY' },
       update: {},
     });
   }
@@ -519,7 +519,7 @@ async function main() {
   }
 
   console.log('Seed complete.');
-  console.log('Login: owner@gostaff.local / password123');
+  console.log('Login: connect@aithworld.com / password123');
   console.log('       hr@gostaff.local / password123');
   console.log('       employee@gostaff.local / password123');
   console.log('Demo ingest API key (save this):', rawKey);

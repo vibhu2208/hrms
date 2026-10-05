@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard, Roles } from '../auth/permissions.guard';
@@ -14,6 +14,42 @@ export class LeaveController {
     return this.leave.leaveTypes();
   }
 
+  @Post('types')
+  @Roles('OWNER', 'HR')
+  createType(@Body() body: Record<string, unknown>, @CurrentUser() user: any) {
+    return this.leave.createType(body, user.id);
+  }
+
+  @Patch('types/:id')
+  @Roles('OWNER', 'HR')
+  updateType(@Param('id') id: string, @Body() body: Record<string, unknown>, @CurrentUser() user: any) {
+    return this.leave.updateType(id, body, user.id);
+  }
+
+  @Get('allocations')
+  @Roles('OWNER', 'HR')
+  allocations() {
+    return this.leave.allocations();
+  }
+
+  @Post('allocations')
+  @Roles('OWNER', 'HR')
+  createAllocation(@Body() body: Record<string, unknown>, @CurrentUser() user: any) {
+    return this.leave.createAllocation(body, user.id);
+  }
+
+  @Patch('allocations/:id')
+  @Roles('OWNER', 'HR')
+  updateAllocation(@Param('id') id: string, @Body() body: Record<string, unknown>, @CurrentUser() user: any) {
+    return this.leave.updateAllocation(id, body, user.id);
+  }
+
+  @Delete('allocations/:id')
+  @Roles('OWNER', 'HR')
+  deleteAllocation(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.leave.deleteAllocation(id, user.id);
+  }
+
   @Get('balances')
   balances(@CurrentUser() user: any, @Query('year') year?: string) {
     return this.leave.balances(user.employeeId, year ? Number(year) : undefined);
@@ -27,6 +63,12 @@ export class LeaveController {
   @Get('mine')
   mine(@CurrentUser() user: any) {
     return this.leave.myRequests(user.employeeId);
+  }
+
+  @Get('overview')
+  @Roles('OWNER', 'HR', 'MANAGEMENT', 'DEPT_MANAGER')
+  overview() {
+    return this.leave.overview();
   }
 
   @Get('pending')
