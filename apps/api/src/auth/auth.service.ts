@@ -68,14 +68,18 @@ export class AuthService {
     return Boolean(this.microsoftConfig());
   }
 
-  microsoftAuthorizeUrl() {
+  microsoftAuthorizeUrl(options?: { prompt?: string; returnTo?: string }) {
     const cfg = this.microsoftConfig();
     if (!cfg) {
       throw new ServiceUnavailableException(
         'Microsoft sign-in is not set up yet. Add the Entra app tenant ID, client ID, and client secret.',
       );
     }
-    const state = this.jwt.sign({ purpose: 'ms-sso' }, { expiresIn: '10m' });
+    const returnTo = safeTaskReturn(options?.returnTo);
+    const state = this.jwt.sign(
+      { purpose: 'ms-sso', ...(returnTo ? { returnTo } : {}) },
+      { expiresIn: '10m' },
+    );
     const params = new URLSearchParams({
       client_id: cfg.clientId,
       response_type: 'code',
@@ -83,7 +87,7 @@ export class AuthService {
       response_mode: 'query',
       scope: MICROSOFT_DELEGATED_SCOPES,
       state,
-      prompt: 'select_account',
+      prompt: options?.prompt === 'consent' ? 'consent' : 'select_account',
     });
     return `https://login.microsoftonline.com/${encodeURIComponent(cfg.tenantId)}/oauth2/v2.0/authorize?${params}`;
   }
@@ -100,7 +104,7 @@ export class AuthService {
     if (!cfg) {
       throw new ServiceUnavailableException('Microsoft sign-in is not set up yet.');
     }
-    let statePayload: { purpose?: string };
+    let statePayload: { purpose?: string; returnTo?: string };
     try {
       statePayload = this.jwt.verify(state);
     } catch {
@@ -201,7 +205,7 @@ export class AuthService {
       metadata: { method: 'microsoft' },
     });
 
-    return this.signSession(user);
+    return { token: this.signSession(user), returnTo: safeTaskReturn(statePayload.returnTo) };
   }
 
   async me(userId: string) {
@@ -246,4 +250,11 @@ export class AuthService {
   async hashPassword(password: string) {
     return bcrypt.hash(password, 10);
   }
+}
+
+function safeTaskReturn(value?: string | null) {
+  if (!value) return undefined;
+  const path = value.trim().split('?')[0].replace(/\/+$/, '');
+  if (path === '/admin/tasks' || path === '/employee/tasks') return path;
+  return undefined;
 }

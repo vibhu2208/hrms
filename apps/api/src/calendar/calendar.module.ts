@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { CalendarService } from './calendar.service';
 import { CalendarController } from './calendar.controller';
-import { MicrosoftGraphService } from '../microsoft/microsoft-graph.service';
+import { MicrosoftModule } from '../microsoft/microsoft.module';
 
 @Module({
-  providers: [CalendarService, MicrosoftGraphService],
+  imports: [MicrosoftModule],
+  providers: [CalendarService],
   controllers: [CalendarController],
 })
 export class CalendarModule {}

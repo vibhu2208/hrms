@@ -15,6 +15,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { PlannerModule } from './planner/planner.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { AuditModule } from './audit/audit.module';
 import { EmailModule } from './email/email.module';
@@ -42,6 +43,7 @@ import { StorageModule } from './storage/storage.module';
     DashboardModule,
     ReportsModule,
     CalendarModule,
+    PlannerModule,
     AlertsModule,
     LifecycleModule,
   ],

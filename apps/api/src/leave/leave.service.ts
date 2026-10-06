@@ -4,8 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  calendarDays,
+  chargeableDays,
   carriedDays,
+  normalizeWeekOffs,
   noticeGap,
   resolveDaysPerPeriod,
   yearlyTotal,
@@ -26,6 +27,44 @@ export class LeaveService {
 
   leaveTypes() {
     return this.prisma.leaveType.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async weekOff() {
+    const policy = await this.prisma.attendancePolicy.findUnique({
+      where: { id: 'default' },
+      select: { weekOffDays: true },
+    });
+    return { days: normalizeWeekOffs(policy?.weekOffDays) };
+  }
+
+  async saveWeekOff(days: unknown, actorId: string) {
+    if (!Array.isArray(days)) throw new BadRequestException('Choose the weekly off days');
+    const invalid = days.some((day) => !Number.isInteger(Number(day)) || Number(day) < 0 || Number(day) > 6);
+    if (invalid) throw new BadRequestException('Week off days must be between Sunday and Saturday');
+    const normalized = normalizeWeekOffs(days);
+    if (normalized.length > 6) throw new BadRequestException('At least one weekday must be a working day');
+    await this.prisma.attendancePolicy.upsert({
+      where: { id: 'default' },
+      update: { weekOffDays: normalized },
+      create: { id: 'default', weekOffDays: normalized },
+    });
+    await this.syncBalances();
+    await this.audit.log({
+      actorId,
+      action: 'WEEK_OFF_UPDATE',
+      resource: 'LEAVE',
+      resourceId: 'default',
+      metadata: { weekOffDays: normalized },
+    });
+    return { days: normalized };
+  }
+
+  private async weekOffDays(db: LeaveStore = this.prisma) {
+    const policy = await db.attendancePolicy.findUnique({
+      where: { id: 'default' },
+      select: { weekOffDays: true },
+    });
+    return normalizeWeekOffs(policy?.weekOffDays);
   }
 
   allocations() {
@@ -161,11 +200,12 @@ export class LeaveService {
       }),
     ]);
 
+    const weekOffs = await this.weekOffDays();
     const pendingByType = new Map<string, number>();
     for (const request of pending) {
       pendingByType.set(
         request.leaveTypeId,
-        (pendingByType.get(request.leaveTypeId) || 0) + calendarDays(request.startDate, request.endDate),
+        (pendingByType.get(request.leaveTypeId) || 0) + chargeableDays(request.startDate, request.endDate, weekOffs),
       );
     }
     const previousByType = new Map(previous.map((row) => [row.leaveTypeId, row.remaining]));
@@ -213,7 +253,9 @@ export class LeaveService {
     const startDate = this.parseDay(data.startDate, 'Start date');
     const endDate = this.parseDay(data.endDate, 'End date');
     if (endDate < startDate) throw new BadRequestException('End date is before the start date');
-    const days = calendarDays(startDate, endDate);
+    const weekOffs = await this.weekOffDays();
+    const days = chargeableDays(startDate, endDate, weekOffs);
+    if (!days) throw new BadRequestException('This range falls only on weekly offs');
     if (leaveType.maxConsecutiveDays && days > leaveType.maxConsecutiveDays) {
       throw new BadRequestException(
         `${leaveType.name} can be taken for at most ${leaveType.maxConsecutiveDays} consecutive day(s)`,
@@ -246,7 +288,7 @@ export class LeaveService {
         },
         select: { startDate: true, endDate: true },
       });
-      const pendingDays = open.reduce((sum, row) => sum + calendarDays(row.startDate, row.endDate), 0);
+      const pendingDays = open.reduce((sum, row) => sum + chargeableDays(row.startDate, row.endDate, weekOffs), 0);
       const available = Math.max(0, (balance?.remaining ?? 0) - pendingDays);
       if (days > available) {
         if (available <= 0) {
@@ -387,10 +429,11 @@ export class LeaveService {
     const balanceByKey = new Map(
       balances.map((row) => [`${row.employeeId}:${row.leaveTypeId}:${row.year}`, row]),
     );
+    const weekOffs = await this.weekOffDays();
     const pendingByKey = new Map<string, number>();
     for (const request of open) {
       const key = `${request.employeeId}:${request.leaveTypeId}:${request.startDate.getUTCFullYear()}`;
-      pendingByKey.set(key, (pendingByKey.get(key) || 0) + calendarDays(request.startDate, request.endDate));
+      pendingByKey.set(key, (pendingByKey.get(key) || 0) + chargeableDays(request.startDate, request.endDate, weekOffs));
     }
     return rows.map((row) => {
       const year = row.startDate.getUTCFullYear();
@@ -433,7 +476,8 @@ export class LeaveService {
       CLARIFICATION: LeaveStatus.CLARIFICATION,
     };
     const year = existing.startDate.getUTCFullYear();
-    const days = calendarDays(existing.startDate, existing.endDate);
+    const weekOffs = await this.weekOffDays();
+    const days = chargeableDays(existing.startDate, existing.endDate, weekOffs);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (action === 'APPROVE') {
@@ -554,10 +598,11 @@ export class LeaveService {
       }),
     ]);
 
+    const weekOffs = await this.weekOffDays(db);
     const used = new Map<string, number>();
     for (const request of approved) {
       const key = `${request.employeeId}:${request.leaveTypeId}`;
-      used.set(key, (used.get(key) || 0) + calendarDays(request.startDate, request.endDate));
+      used.set(key, (used.get(key) || 0) + chargeableDays(request.startDate, request.endDate, weekOffs));
     }
     const previousRemaining = new Map(
       previous.map((row) => [`${row.employeeId}:${row.leaveTypeId}`, row.remaining]),

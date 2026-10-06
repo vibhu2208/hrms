@@ -15,9 +15,13 @@ export class AuthController {
   }
 
   @Get('microsoft')
-  microsoft(@Res() res: Response) {
+  microsoft(
+    @Res() res: Response,
+    @Query('prompt') prompt?: string,
+    @Query('returnTo') returnTo?: string,
+  ) {
     try {
-      return res.redirect(this.auth.microsoftAuthorizeUrl());
+      return res.redirect(this.auth.microsoftAuthorizeUrl({ prompt, returnTo }));
     } catch (err: any) {
       return res.redirect(this.failureRedirect(err?.message));
     }
@@ -37,9 +41,11 @@ export class AuthController {
       );
     }
     try {
-      const token = await this.auth.loginWithMicrosoft(code, state);
+      const session = await this.auth.loginWithMicrosoft(code, state);
       const origin = this.auth.webOrigin();
-      return res.redirect(`${origin}/login/microsoft#token=${encodeURIComponent(token)}`);
+      const hash = new URLSearchParams({ token: session.token });
+      if (session.returnTo) hash.set('returnTo', session.returnTo);
+      return res.redirect(`${origin}/login/microsoft#${hash.toString()}`);
     } catch (err: any) {
       const message = Array.isArray(err?.message) ? err.message.join(', ') : err?.message;
       return res.redirect(this.failureRedirect(message));

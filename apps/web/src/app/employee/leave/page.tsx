@@ -26,12 +26,17 @@ type Balance = {
   };
 };
 
-function calendarDays(start: string, end: string) {
+function chargeableDays(start: string, end: string, weekOffs: number[]) {
   if (!start || !end) return 0;
   const from = Date.parse(`${start}T00:00:00.000Z`);
   const to = Date.parse(`${end}T00:00:00.000Z`);
   if (Number.isNaN(from) || Number.isNaN(to) || to < from) return 0;
-  return Math.round((to - from) / 86_400_000) + 1;
+  const off = new Set(weekOffs);
+  let count = 0;
+  for (let cursor = from; cursor <= to; cursor += 86_400_000) {
+    if (!off.has(new Date(cursor).getUTCDay())) count += 1;
+  }
+  return count;
 }
 
 function frequencyLabel(frequency: string, days: number) {
@@ -50,16 +55,19 @@ export default function MyLeave() {
   const [balances, setBalances] = useState<Balance[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [form, setForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', reason: '', attachmentUrl: '' });
+  const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [b, r] = await Promise.all([
+    const [b, r, weekOff] = await Promise.all([
       api<Balance[]>('/leave/balances'),
       api('/leave/mine'),
+      api<{ days: number[] }>('/leave/week-off'),
     ]);
     setBalances(b);
     setRequests(r);
+    if (Array.isArray(weekOff.days)) setWeekOffs(weekOff.days);
   }
 
   useEffect(() => {
@@ -70,7 +78,7 @@ export default function MyLeave() {
     () => balances.find((balance) => balance.leaveTypeId === form.leaveTypeId),
     [balances, form.leaveTypeId],
   );
-  const requestedDays = calendarDays(form.startDate, form.endDate);
+  const requestedDays = chargeableDays(form.startDate, form.endDate, weekOffs);
 
   async function apply(event: FormEvent) {
     event.preventDefault();
@@ -83,8 +91,12 @@ export default function MyLeave() {
       setError(`You have no ${selected.leaveType.name} left`);
       return;
     }
-    if (!requestedDays) {
+    if (!form.startDate || !form.endDate || form.endDate < form.startDate) {
       setError('Choose a valid date range');
+      return;
+    }
+    if (!requestedDays) {
+      setError('This range falls only on weekly offs');
       return;
     }
     if (requestedDays > selected.available) {

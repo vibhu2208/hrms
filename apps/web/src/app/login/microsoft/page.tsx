@@ -9,7 +9,9 @@ export default function MicrosoftCallbackPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const token = hash.get('token');
+    const returnTo = hash.get('returnTo');
     if (!token) {
       router.replace('/login?error=' + encodeURIComponent('Microsoft sign-in did not return a session.'));
       return;
@@ -19,7 +21,8 @@ export default function MicrosoftCallbackPage() {
     api('/auth/me')
       .then((user) => {
         setSession(token, user);
-        router.replace(isAdminRole(user.role?.code) ? '/admin' : '/employee');
+        const tasksReturn = returnTo === '/admin/tasks' || returnTo === '/employee/tasks' ? returnTo : '';
+        router.replace(tasksReturn || (isAdminRole(user.role?.code) ? '/admin' : '/employee'));
       })
       .catch((err: any) => {
         setError(err.message || 'Microsoft sign-in failed');

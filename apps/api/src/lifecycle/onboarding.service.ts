@@ -3,7 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { OnboardingStatus, LifecycleDocumentKind } from '@prisma/client';
+import { OnboardingStatus, LifecycleDocumentKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -25,11 +25,42 @@ const listSelect = {
   firstName: true,
   lastName: true,
   email: true,
+  phone: true,
   joiningDate: true,
   status: true,
   employeeCode: true,
+  roleCode: true,
+  departmentId: true,
+  designationId: true,
   createdAt: true,
 } as const;
+
+const PROFILE_KEYS = [
+  'gender',
+  'dateOfBirth',
+  'bloodGroup',
+  'maritalStatus',
+  'fatherOrSpouseName',
+  'personalEmail',
+  'alternatePhone',
+  'currentAddress',
+  'city',
+  'state',
+  'pincode',
+  'permanentAddress',
+  'emergencyContactName',
+  'emergencyContactPhone',
+  'emergencyContactRelation',
+  'employmentType',
+  'workLocation',
+  'aadhaarNumber',
+  'panNumber',
+  'bankName',
+  'bankAccountNumber',
+  'bankIfsc',
+] as const;
+
+type UploadFile = { buffer: Buffer; mimetype: string; originalname: string; size: number };
 
 const caseSelect = {
   id: true,
@@ -91,8 +122,13 @@ export class OnboardingService {
       designationId?: string;
       managerId?: string;
       applicationId?: string;
+      document1Kind?: string;
+      document1Title?: string;
+      document2Kind?: string;
+      document2Title?: string;
     },
     requestedById: string,
+    files?: { document1?: UploadFile; document2?: UploadFile; photo?: UploadFile },
   ) {
     if (!data.firstName?.trim() || !data.lastName?.trim() || !data.email?.trim()) {
       throw new BadRequestException('Name and email are required');
@@ -100,6 +136,14 @@ export class OnboardingService {
     if (!data.joiningDate) {
       throw new BadRequestException('Joining date is required');
     }
+    const profile = profileFrom(data);
+    assertProfile(data, profile);
+    if (!files?.document1 || !files?.document2) {
+      throw new BadRequestException('Upload two verification documents');
+    }
+    assertUpload(files.document1, false);
+    assertUpload(files.document2, false);
+    if (files.photo) assertUpload(files.photo, true);
 
     if (data.applicationId) {
       const app = await this.prisma.jobApplication.findUnique({
@@ -122,18 +166,42 @@ export class OnboardingService {
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
         email: data.email.toLowerCase().trim(),
-        phone: data.phone,
+        phone: digits(data.phone || '') || data.phone,
         employeeCode: data.employeeCode,
         roleCode: data.roleCode || 'EMPLOYEE',
         joiningDate: new Date(data.joiningDate),
         departmentId: data.departmentId,
         designationId: data.designationId,
         managerId: data.managerId,
-        applicationId: data.applicationId,
+        applicationId: data.applicationId || undefined,
+        profile,
         requestedById,
         status: OnboardingStatus.PENDING_OWNER,
       },
     });
+
+    try {
+      await this.storeCaseFile(
+        request.id,
+        files.document1,
+        data.document1Kind,
+        data.document1Title,
+        requestedById,
+      );
+      await this.storeCaseFile(
+        request.id,
+        files.document2,
+        data.document2Kind,
+        data.document2Title,
+        requestedById,
+      );
+      if (files.photo) {
+        await this.storeCaseFile(request.id, files.photo, 'PHOTO', 'Profile photo', requestedById);
+      }
+    } catch (err) {
+      await this.prisma.onboardingRequest.delete({ where: { id: request.id } }).catch(() => undefined);
+      throw err;
+    }
 
     await this.audit.log({
       actorId: requestedById,
@@ -147,7 +215,7 @@ export class OnboardingService {
       `${request.firstName} ${request.lastName} — pending owner approval`,
     );
 
-    return request;
+    return this.findOne(request.id);
   }
 
   list(status?: OnboardingStatus) {
@@ -538,6 +606,13 @@ export class OnboardingService {
     actorId: string,
     body?: { password?: string; employeeCode?: string },
   ) {
+    const stored = await this.prisma.onboardingRequest.findUnique({
+      where: { id: req.id },
+      include: {
+        documents: { where: { kind: LifecycleDocumentKind.PHOTO }, orderBy: { uploadedAt: 'desc' }, take: 1 },
+      },
+    });
+    const profile = profileRecord(stored?.profile);
     const user = await this.users.create(
       {
         email: req.email,
@@ -550,9 +625,21 @@ export class OnboardingService {
         departmentId: req.departmentId || undefined,
         designationId: req.designationId || undefined,
         managerId: req.managerId || undefined,
+        ...profile,
       },
       actorId,
     );
+    const photoPath = stored?.documents[0]?.storagePath;
+    if (user.employee?.id && (Object.keys(profile).length || photoPath)) {
+      await this.users.update(
+        user.employee.id,
+        {
+          ...profile,
+          ...(photoPath ? { photoUrl: photoPath } : {}),
+        },
+        actorId,
+      );
+    }
     const employeeCode = user.employee?.employeeCode || '';
 
     await this.prisma.lifecycleDocument.updateMany({
@@ -637,5 +724,131 @@ export class OnboardingService {
     });
 
     return updated;
+  }
+
+  private async storeCaseFile(
+    onboardingId: string,
+    file: UploadFile,
+    kind: string | undefined,
+    title: string | undefined,
+    actorId: string,
+  ) {
+    const safeName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 80);
+    const storagePath = `${onboardingId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+    await this.storage.upload(storagePath, file.buffer, file.mimetype);
+    const resolved = (Object.values(LifecycleDocumentKind) as string[]).includes(kind || '')
+      ? (kind as LifecycleDocumentKind)
+      : LifecycleDocumentKind.OTHER;
+    await this.prisma.lifecycleDocument.create({
+      data: {
+        onboardingId,
+        kind: resolved,
+        title: title?.trim() || file.originalname || 'Document',
+        url: storagePath,
+        storagePath,
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+      },
+    });
+    await this.audit.log({
+      actorId,
+      action: 'ONBOARDING_DOCUMENT_UPLOAD',
+      resource: 'ONBOARDING',
+      resourceId: onboardingId,
+      metadata: { storagePath, bucket: this.storage.bucket() },
+    });
+  }
+}
+
+function text(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function digits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function profileFrom(data: Record<string, unknown>) {
+  const profile: Record<string, string> = {};
+  for (const key of PROFILE_KEYS) {
+    const value = text(data[key]);
+    if (!value) continue;
+    if (key === 'panNumber' || key === 'bankIfsc') profile[key] = value.toUpperCase();
+    else if (key === 'aadhaarNumber' || key === 'emergencyContactPhone' || key === 'alternatePhone') {
+      profile[key] = digits(value);
+    } else profile[key] = value;
+  }
+  return profile as Prisma.InputJsonObject;
+}
+
+function profileRecord(value: Prisma.JsonValue | null | undefined) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {} as Record<string, string>;
+  const out: Record<string, string> = {};
+  for (const key of PROFILE_KEYS) {
+    const raw = (value as Record<string, unknown>)[key];
+    if (typeof raw === 'string' && raw.trim()) out[key] = raw.trim();
+  }
+  return out;
+}
+
+function assertProfile(
+  data: { phone?: string; departmentId?: string; designationId?: string },
+  profile: Prisma.InputJsonObject,
+) {
+  const phone = digits(data.phone || '');
+  if (phone.length < 10) throw new BadRequestException('Enter a valid phone number');
+  const emergency = digits(String(profile.emergencyContactPhone || ''));
+  if (!text(profile.emergencyContactName) || emergency.length < 10) {
+    throw new BadRequestException('Emergency contact name and phone are required');
+  }
+  if (!text(profile.gender) || !text(profile.dateOfBirth)) {
+    throw new BadRequestException('Gender and date of birth are required');
+  }
+  if (!text(profile.currentAddress) || !text(profile.city) || !text(profile.state)) {
+    throw new BadRequestException('Current address, city, and state are required');
+  }
+  if (!/^\d{6}$/.test(String(profile.pincode || ''))) {
+    throw new BadRequestException('PIN code must be 6 digits');
+  }
+  if (!/^\d{12}$/.test(digits(String(profile.aadhaarNumber || '')))) {
+    throw new BadRequestException('Aadhaar number must be 12 digits');
+  }
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(profile.panNumber || ''))) {
+    throw new BadRequestException('Enter a valid PAN (for example ABCDE1234F)');
+  }
+  if (!data.departmentId || !data.designationId) {
+    throw new BadRequestException('Department and designation are required');
+  }
+  const personalEmail = text(profile.personalEmail);
+  if (personalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalEmail)) {
+    throw new BadRequestException('Enter a valid personal email');
+  }
+  const bankIfsc = text(profile.bankIfsc);
+  if (bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIfsc)) {
+    throw new BadRequestException('Enter a valid IFSC');
+  }
+}
+
+function assertUpload(file: UploadFile, photo: boolean) {
+  if (!file?.buffer?.length) throw new BadRequestException(photo ? 'Choose a photo to upload' : 'Choose a file to upload');
+  const limit = photo ? 5 * 1024 * 1024 : 15 * 1024 * 1024;
+  if ((file.size || 0) > limit) {
+    throw new BadRequestException(photo ? 'Photo must be 5 MB or smaller' : 'Each file must be 15 MB or smaller');
+  }
+  const allowed = photo
+    ? new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+    : new Set([
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ]);
+  if (!file.mimetype || !allowed.has(file.mimetype)) {
+    throw new BadRequestException(photo ? 'Upload a JPG, PNG, or WebP photo' : 'Upload a PDF, image, or Word document');
   }
 }

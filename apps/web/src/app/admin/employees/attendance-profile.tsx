@@ -77,6 +77,15 @@ function hoursLabel(minutes: number) {
   return `${(minutes / 60).toFixed(2)} hours`;
 }
 
+function countedDays(start: Date, end: Date, weekOffs: number[]) {
+  const off = new Set(weekOffs);
+  let count = 0;
+  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    if (!off.has(cursor.getDay())) count += 1;
+  }
+  return count;
+}
+
 function overtimeLabel(minutes: number) {
   const safe = Math.max(0, minutes);
   const hours = Math.floor(safe / 60);
@@ -313,6 +322,7 @@ export function EmployeeAttendanceProfile({
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
   const [holidays, setHolidays] = useState<HolidayRow[]>([]);
+  const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'timecard' | 'timeline'>('timecard');
@@ -344,17 +354,19 @@ export function EmployeeAttendanceProfile({
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    const [records, holidayRows, leaveRows] = await Promise.all([
+    const [records, holidayRows, leaveRows, weekOff] = await Promise.all([
       api<AttendanceRow[]>(`/attendance/employee/${employee.id}`).catch((err: any) => {
         setError(err.message || 'Could not load attendance');
         return [] as AttendanceRow[];
       }),
       api<HolidayRow[]>('/org/holidays').catch(() => [] as HolidayRow[]),
       api<LeaveRow[]>('/leave').catch(() => [] as LeaveRow[]),
+      api<{ days: number[] }>('/leave/week-off').catch(() => ({ days: [0, 6] })),
     ]);
     setAttendance(records);
     setHolidays(holidayRows);
     setLeaves(leaveRows.filter((row) => row.employeeId === employee.id));
+    if (Array.isArray(weekOff.days)) setWeekOffs(weekOff.days);
     setLoading(false);
   }, [employee.id]);
 
@@ -400,24 +412,33 @@ export function EmployeeAttendanceProfile({
     return Array.from({ length: count }, (_, index) => {
       const date = new Date(cursor.year, cursor.month, index + 1);
       const key = dayKey(date);
-      const weekend = date.getDay() === 0 || date.getDay() === 6;
+      const weekend = weekOffs.includes(date.getDay());
       const record = byDate.get(key);
       let mark = 'blank';
-      if (holidaySet.has(key) && !record) mark = 'holiday';
-      else if (leaveDays.has(key) && (!record || record.status === 'LEAVE' || record.status === 'ABSENT')) mark = 'off';
-      else if (record) mark = markFor(record.status);
+      if (record) mark = markFor(record.status);
+      else if (holidaySet.has(key)) mark = 'holiday';
       else if (weekend) mark = 'weekend';
+      else if (leaveDays.has(key)) mark = 'off';
       return { day: index + 1, mark };
     });
-  }, [attendance, cursor, holidays, leaves]);
+  }, [attendance, cursor, holidays, leaves, weekOffs]);
 
   const history = useMemo(() => {
     const monthStart = new Date(cursor.year, cursor.month, 1);
     const monthEnd = new Date(cursor.year, cursor.month + 1, 0, 23, 59, 59);
-    const items: Array<{ id: string; date: string; kind: 'attendance'; row: AttendanceRow } | { id: string; date: string; kind: 'leave'; leave: LeaveRow }> = [];
+    const items: Array<
+      | { id: string; date: string; kind: 'attendance'; row: AttendanceRow }
+      | { id: string; date: string; kind: 'leave'; leave: LeaveRow }
+      | { id: string; date: string; kind: 'weekoff' }
+      | { id: string; date: string; kind: 'holiday'; name: string }
+    > = [];
+    const marked = new Set<string>();
     attendance.forEach((row) => {
       const date = new Date(row.date);
-      if (date >= monthStart && date <= monthEnd) items.push({ id: row.id, date: row.date, kind: 'attendance', row });
+      if (date >= monthStart && date <= monthEnd) {
+        marked.add(dayKey(row.date));
+        items.push({ id: row.id, date: row.date, kind: 'attendance', row });
+      }
     });
     leaves.forEach((leave) => {
       if (leave.status === 'REJECTED' || leave.status === 'CANCELLED') return;
@@ -426,8 +447,29 @@ export function EmployeeAttendanceProfile({
       if (end < monthStart || start > monthEnd) return;
       items.push({ id: leave.id, date: leave.startDate, kind: 'leave', leave });
     });
+    const holidayByDay = new Map(holidays.map((row) => [dayKey(row.date), row.name]));
+    const daysInMonth = monthEnd.getDate();
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(cursor.year, cursor.month, day);
+      const key = dayKey(date);
+      if (marked.has(key)) continue;
+      const iso = new Date(Date.UTC(cursor.year, cursor.month, day)).toISOString();
+      if (weekOffs.includes(date.getDay())) {
+        items.push({ id: `weekoff-${key}`, date: iso, kind: 'weekoff' });
+      } else if (holidayByDay.has(key)) {
+        items.push({ id: `holiday-${key}`, date: iso, kind: 'holiday', name: holidayByDay.get(key) || 'Holiday' });
+      }
+    }
     const q = query.trim().toLowerCase();
     const filtered = items.filter((item) => {
+      if (item.kind === 'weekoff') {
+        if (statusFilter !== 'ALL' && statusFilter !== 'WEEKEND') return false;
+        return !q || 'week off weekend'.includes(q) || dayKey(item.date).includes(q);
+      }
+      if (item.kind === 'holiday') {
+        if (statusFilter !== 'ALL' && statusFilter !== 'HOLIDAY') return false;
+        return !q || item.name.toLowerCase().includes(q) || 'holiday'.includes(q) || dayKey(item.date).includes(q);
+      }
       if (item.kind === 'leave') {
         if (statusFilter !== 'ALL' && statusFilter !== 'LEAVE') return false;
         const label = `${item.leave.leaveType?.name || ''} ${item.leave.reason || ''} time off`;
@@ -446,7 +488,7 @@ export function EmployeeAttendanceProfile({
       return (new Date(a.date).getTime() - new Date(b.date).getTime()) * (sortDir === 'asc' ? 1 : -1);
     });
     return filtered;
-  }, [attendance, cursor, leaves, query, sortDir, sortKey, statusFilter]);
+  }, [attendance, cursor, holidays, leaves, query, sortDir, sortKey, statusFilter, weekOffs]);
 
   const years = useMemo(() => {
     const found = new Set<number>([currentYear, statYear]);
@@ -485,6 +527,8 @@ export function EmployeeAttendanceProfile({
     downloadCsv(`${employee.employeeCode || 'employee'}-${MONTHS[cursor.month]}-${cursor.year}-attendance.csv`, [
       ['Date', 'Status', 'Clock-in', 'Clock-out', 'Overtime', 'Working hours', 'Notes'],
       ...history.map((item) => {
+        if (item.kind === 'weekoff') return [dayKey(item.date), 'Week off', '', '', '', '', ''];
+        if (item.kind === 'holiday') return [dayKey(item.date), 'Holiday', '', '', '', '', item.name];
         if (item.kind === 'leave') {
           return [
             dayKey(item.date),
@@ -644,9 +688,10 @@ export function EmployeeAttendanceProfile({
           </button>
           <div className="hr-strip" ref={stripRef}>
             {monthDays.map((day) => (
-              <div key={day.day} className="hr-day">
+              <div key={day.day} className={`hr-day${day.mark === 'weekend' ? ' is-off' : ''}`}>
                 <span>{String(day.day).padStart(2, '0')}</span>
                 <DayMark mark={day.mark} />
+                <em>{day.mark === 'weekend' ? 'Off' : ''}</em>
               </div>
             ))}
           </div>
@@ -713,6 +758,8 @@ export function EmployeeAttendanceProfile({
                 <option value="HALF_DAY">Half day</option>
                 <option value="ABSENT">Absent</option>
                 <option value="LEAVE">Time off</option>
+                <option value="WEEKEND">Week off</option>
+                <option value="HOLIDAY">Holiday</option>
               </select>
             </label>
           </div>
@@ -739,10 +786,32 @@ export function EmployeeAttendanceProfile({
               </thead>
               <tbody>
                 {history.map((item) => {
+                  if (item.kind === 'weekoff' || item.kind === 'holiday') {
+                    const date = new Date(item.date);
+                    const label = item.kind === 'weekoff' ? 'Week off' : item.name;
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <div className="hr-date">
+                            <b>{date.toLocaleDateString(undefined, { weekday: 'short' })}</b>
+                            <span>{date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          </div>
+                        </td>
+                        <td>—</td>
+                        <td><span className={`hr-status ${item.kind === 'weekoff' ? 'off' : 'holiday'}`}>{label}</span></td>
+                        <td className="muted-cell">—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                      </tr>
+                    );
+                  }
                   if (item.kind === 'leave') {
                     const start = parseKey(dayKey(item.leave.startDate));
                     const end = parseKey(dayKey(item.leave.endDate));
-                    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+                    const days = countedDays(start, end, weekOffs);
                     const approver = [item.leave.approver?.firstName, item.leave.approver?.lastName].filter(Boolean).join(' ');
                     return (
                       <tr key={item.id} className="hr-leave-row">
@@ -832,6 +901,17 @@ export function EmployeeAttendanceProfile({
         {!loading && tab === 'timeline' && history.length > 0 && (
           <ol className="hr-timeline">
             {history.map((item) => {
+              if (item.kind === 'weekoff' || item.kind === 'holiday') {
+                return (
+                  <li key={item.id}>
+                    <time>{new Date(item.date).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</time>
+                    <div>
+                      <strong>{item.kind === 'weekoff' ? 'Week off' : item.name}</strong>
+                      <span>{item.kind === 'weekoff' ? 'Weekly off' : 'Public holiday'}</span>
+                    </div>
+                  </li>
+                );
+              }
               if (item.kind === 'leave') {
                 return (
                   <li key={item.id}>

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard, Roles } from '../auth/permissions.guard';
@@ -12,6 +12,17 @@ export class LeaveController {
   @Get('types')
   types() {
     return this.leave.leaveTypes();
+  }
+
+  @Get('week-off')
+  weekOff() {
+    return this.leave.weekOff();
+  }
+
+  @Put('week-off')
+  @Roles('OWNER', 'HR')
+  saveWeekOff(@Body() body: { days?: unknown }, @CurrentUser() user: any) {
+    return this.leave.saveWeekOff(body?.days, user.id);
   }
 
   @Post('types')

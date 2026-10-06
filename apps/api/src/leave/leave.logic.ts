@@ -17,6 +17,26 @@ export function calendarDays(start: Date, end: Date) {
   return Math.round((to - from) / 86_400_000) + 1;
 }
 
+export const DEFAULT_WEEK_OFFS = [0, 6];
+
+export function normalizeWeekOffs(days: unknown) {
+  if (!Array.isArray(days)) return [...DEFAULT_WEEK_OFFS];
+  const unique = [...new Set(days.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))];
+  unique.sort((left, right) => left - right);
+  return unique;
+}
+
+export function chargeableDays(start: Date, end: Date, weekOffs: number[]) {
+  const off = new Set(weekOffs);
+  const from = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const to = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  let count = 0;
+  for (let cursor = from; cursor <= to; cursor += 86_400_000) {
+    if (!off.has(new Date(cursor).getUTCDay())) count += 1;
+  }
+  return count;
+}
+
 export function noticeGap(start: Date, minNoticeDays: number, today = new Date()) {
   if (minNoticeDays <= 0) return 0;
   const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
 type Verification = {
@@ -74,6 +74,7 @@ function statusLabel(status?: string) {
   if (status === 'ABSENT') return 'Absent';
   if (status === 'LEAVE') return 'Leave';
   if (status === 'HOLIDAY') return 'Holiday';
+  if (status === 'WEEKEND') return 'Week off';
   if (status === 'REJECTED') return 'Rejected';
   if (status === 'PENDING_APPROVAL') return 'Pending';
   return status ? status.replaceAll('_', ' ') : '—';
@@ -103,6 +104,7 @@ function geoMessage(error: unknown) {
 export default function MyAttendance() {
   const [verification, setVerification] = useState<Verification | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [filters, setFilters] = useState({ from: '', to: '', status: '' });
   const [geoError, setGeoError] = useState('');
   const [reason, setReason] = useState('');
@@ -148,6 +150,14 @@ export default function MyAttendance() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    api<{ days: number[] }>('/leave/week-off')
+      .then((row) => {
+        if (Array.isArray(row.days)) setWeekOffs(row.days);
+      })
+      .catch(() => undefined);
+  }, []);
 
   function applyToday(saved: any, message: string) {
     setVerification((current) =>
@@ -247,7 +257,32 @@ export default function MyAttendance() {
     }
   }
 
-  const filteredHistory = history.filter((row) => {
+  const records = useMemo(() => {
+    const covered = new Set(history.map((row) => new Date(row.date).toISOString().slice(0, 10)));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const earliest = history.reduce((min: number, row) => Math.min(min, new Date(row.date).getTime()), today.getTime());
+    const first = new Date(earliest);
+    const start = filters.from
+      ? new Date(`${filters.from}T00:00:00`)
+      : new Date(first.getFullYear(), first.getMonth(), 1);
+    const end = filters.to ? new Date(`${filters.to}T00:00:00`) : today;
+    const extras: any[] = [];
+    for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      if (!weekOffs.includes(cursor.getDay())) continue;
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      if (covered.has(key)) continue;
+      extras.push({
+        id: `weekoff-${key}`,
+        date: new Date(Date.UTC(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())).toISOString(),
+        status: 'WEEKEND',
+        approvalStatus: 'NOT_REQUIRED',
+      });
+    }
+    return [...history, ...extras].sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+  }, [filters.from, filters.to, history, weekOffs]);
+
+  const filteredHistory = records.filter((row) => {
     const key = new Date(row.date).toISOString().slice(0, 10);
     if (filters.from && key < filters.from) return false;
     if (filters.to && key > filters.to) return false;
@@ -265,6 +300,7 @@ export default function MyAttendance() {
   const checkedIn =
     today?.checkIn && today.approvalStatus !== 'REJECTED' && today.status !== 'REJECTED';
 
+  const todayOff = weekOffs.includes(new Date().getDay());
   const todayLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -342,6 +378,7 @@ export default function MyAttendance() {
           {today?.checkOut && <span>Out <b>{clock(today.checkOut)}</b></span>}
         </div>
 
+        {todayOff && !checkedIn && <p className="att-sub">Today is a weekly off.</p>}
         {verification?.blockedReason && <p className="att-sub">{verification.blockedReason}</p>}
         {today?.approvalStatus === 'PENDING' && (
           <p className="att-sub">Waiting for HR. Requested at {clock(today.checkIn)}.</p>
@@ -453,10 +490,10 @@ export default function MyAttendance() {
                 Clear
               </button>
             )}{' '}
-            {history.length ? `${filteredHistory.length} of ${history.length}` : 'No days yet'}
+            {history.length || records.length ? `${filteredHistory.length} of ${records.length}` : 'No days yet'}
           </span>
         </div>
-        {history.length > 0 && (
+        {records.length > 0 && (
           <div className="att-filters">
             <label>
               From
@@ -478,6 +515,7 @@ export default function MyAttendance() {
                 <option value="WFH">Remote</option>
                 <option value="ABSENT">Absent</option>
                 <option value="LEAVE">Leave</option>
+                <option value="WEEKEND">Week off</option>
                 <option value="PENDING_APPROVAL">Pending</option>
                 <option value="REJECTED">Rejected</option>
               </select>
@@ -533,8 +571,8 @@ export default function MyAttendance() {
             </table>
           </div>
         )}
-        {history.length > 0 && !filteredHistory.length && <p className="att-empty">No records match these filters.</p>}
-        {!history.length && <p className="att-empty">No attendance records yet.</p>}
+        {records.length > 0 && !filteredHistory.length && <p className="att-empty">No records match these filters.</p>}
+        {!records.length && <p className="att-empty">No attendance records yet.</p>}
       </section>
     </div>
   );

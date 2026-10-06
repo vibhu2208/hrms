@@ -9,9 +9,10 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { OnboardingService } from './onboarding.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard, Roles } from '../auth/permissions.guard';
@@ -24,8 +25,31 @@ export class OnboardingController {
   constructor(private onboarding: OnboardingService) {}
 
   @Post()
-  create(@Body() body: any, @CurrentUser() user: any) {
-    return this.onboarding.create(body, user.id);
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'document1', maxCount: 1 },
+        { name: 'document2', maxCount: 1 },
+        { name: 'photo', maxCount: 1 },
+      ],
+      { limits: { fileSize: 15 * 1024 * 1024 } },
+    ),
+  )
+  create(
+    @UploadedFiles()
+    files: {
+      document1?: Express.Multer.File[];
+      document2?: Express.Multer.File[];
+      photo?: Express.Multer.File[];
+    },
+    @Body() body: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.onboarding.create(body, user.id, {
+      document1: files?.document1?.[0],
+      document2: files?.document2?.[0],
+      photo: files?.photo?.[0],
+    });
   }
 
   @Get('pending')

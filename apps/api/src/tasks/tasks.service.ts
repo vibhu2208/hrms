@@ -74,7 +74,7 @@ export class TasksService {
           status: true,
           dueDate: true,
           assigneeId: true,
-          assignee: { select: { id: true, firstName: true, lastName: true } },
+          assignee: { select: { id: true, userId: true, firstName: true, lastName: true } },
           checklistItems: { select: { completed: true }, orderBy: { order: 'asc' } },
         },
       });

@@ -357,6 +357,7 @@ model AttendancePolicy {
   hrApprovalForExceptions Boolean  @default(true)
   shiftStart              String?
   shiftEnd                String?
+  weekOffDays             Int[]    @default([0, 6])
   updatedAt               DateTime @updatedAt
 }
 
@@ -869,6 +870,7 @@ model OnboardingRequest {
   designationId    String?
   managerId        String?
   applicationId    String?
+  profile          Json?
   application      JobApplication? @relation(fields: [applicationId], references: [id])
   employeeId       String?
   employee         Employee?        @relation(fields: [employeeId], references: [id])

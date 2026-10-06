@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, getStoredUser } from '@/lib/api';
 import { UpcomingMeetings } from '@/components/upcoming-meetings';
+import { BoardTask, PlannerListResponse, fromGoStaff, fromPlanner, sourceLine, upcomingTasks } from '@/lib/tasks';
 
 type Overview = {
   employees: number;
@@ -132,14 +133,19 @@ export default function AdminDashboard() {
   const [employees, setEmployees] = useState<any[] | null>(null);
   const [notifications, setNotifications] = useState<any[] | null>(null);
   const [approvals, setApprovals] = useState<any[] | null>(null);
+  const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [welcomeName, setWelcomeName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [userId, setUserId] = useState('');
   const [activityOpen, setActivityOpen] = useState(false);
   const [centerPane, setCenterPane] = useState<'tasks' | 'actions'>('tasks');
+  const [plannerMine, setPlannerMine] = useState<BoardTask[] | null>(null);
+  const [plannerFailed, setPlannerFailed] = useState(false);
   const activityRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = getStoredUser();
+    if (stored?.id) setUserId(stored.id);
     if (stored?.employee) {
       setWelcomeName(`${stored.employee.firstName} ${stored.employee.lastName}`);
       setEmployeeId(stored.employee.id);
@@ -161,6 +167,29 @@ export default function AdminDashboard() {
     load<any[]>('/employees', (rows) => setEmployees(rows ?? []));
     load<any[]>('/notifications', (rows) => setNotifications(rows ?? []));
     load<any[]>('/attendance/approvals', (rows) => setApprovals(rows ?? []));
+    load<{ days: number[] }>('/leave/week-off', (row) => {
+      if (Array.isArray(row?.days)) setWeekOffs(row.days);
+    });
+    api<PlannerListResponse>('/planner/tasks')
+      .then((res) => {
+        if (cancel) return;
+        if (res.status === 'ok') {
+          setPlannerMine((res.tasks || []).map(fromPlanner));
+          setPlannerFailed(false);
+        } else if (res.status === 'needsConsent' || res.status === 'needsPlannerConsent') {
+          setPlannerMine([]);
+          setPlannerFailed(false);
+        } else {
+          setPlannerMine([]);
+          setPlannerFailed(true);
+        }
+      })
+      .catch(() => {
+        if (!cancel) {
+          setPlannerMine([]);
+          setPlannerFailed(true);
+        }
+      });
     return () => {
       cancel = true;
     };
@@ -175,12 +204,20 @@ export default function AdminDashboard() {
   const myTaskList = useMemo(
     () =>
       (tasks || []).filter((task) => {
-        const mine = task.assigneeId === employeeId || task.assignee?.id === employeeId;
+        const mine =
+          task.assigneeId === employeeId ||
+          task.assignee?.id === employeeId ||
+          (userId && task.assignee?.userId === userId);
         return mine && (task.status === 'PENDING' || task.status === 'OVERDUE');
       }),
-    [tasks, employeeId],
+    [tasks, employeeId, userId],
   );
-  const myTasks = myTaskList.slice(0, 4);
+  const myBoardTasks = useMemo(() => myTaskList.map(fromGoStaff), [myTaskList]);
+  const mergedMine = useMemo(
+    () => upcomingTasks(myBoardTasks, plannerMine || []),
+    [myBoardTasks, plannerMine],
+  );
+  const shownMine = mergedMine.slice(0, 4);
   const activity = useMemo(() => {
     const items: { id: string; title: string; name: string; time: string }[] = [];
     for (const note of notifications || []) {
@@ -365,7 +402,7 @@ export default function AdminDashboard() {
             href="#today-tasks"
             onClick={() => setCenterPane('tasks')}
           >
-            {myTaskList.length} {myTaskList.length === 1 ? 'task' : 'tasks'} on progress
+            {(plannerMine ? mergedMine.length : myTaskList.length)} {(plannerMine ? mergedMine.length : myTaskList.length) === 1 ? 'task' : 'tasks'} on progress
           </a>
         </article>
         <article className="dash-card">
@@ -434,21 +471,21 @@ export default function AdminDashboard() {
                   : 'Items waiting on HR'}
               </p>
             </div>
-            {centerPane === 'tasks' && myTaskList.length > 4 && (
+            {centerPane === 'tasks' && (plannerMine ? mergedMine.length : myTaskList.length) > 0 && (
               <Link className="dash-linkish" href="/admin/tasks">View All</Link>
             )}
           </div>
           {centerPane === 'tasks' && (
             <>
               {tasks === null && <div className="dash-empty">Loading…</div>}
-              {tasks !== null && myTasks.length === 0 && <div className="dash-empty">No tasks assigned to you</div>}
+              {tasks !== null && plannerMine === null && shownMine.length === 0 && <div className="dash-empty">Loading…</div>}
+              {tasks !== null && plannerMine !== null && shownMine.length === 0 && <div className="dash-empty">No tasks assigned to you</div>}
               <div className="dash-task-grid">
-                {myTasks.map((task) => {
-                  const progress = taskProgress(task);
-                  const status = taskStatus(task, progress);
-                  const person = task.assignee || {};
+                {shownMine.map((task) => {
+                  const parts = (task.assignedTo || '').split(' ').filter(Boolean);
+                  const person = task.assignedTo || (task.extraAssignees > 0 ? `${task.extraAssignees} assigned` : 'Unassigned');
                   return (
-                    <div key={task.id} className="dash-task">
+                    <div key={task.key} className="dash-task">
                       <div className="dash-task-top">
                         <h3>{task.title}</h3>
                         <details className="dash-menu">
@@ -456,22 +493,24 @@ export default function AdminDashboard() {
                           <Link href="/admin/tasks">Open tasks</Link>
                         </details>
                       </div>
+                      <small className="dash-task-source">{sourceLine(task)}</small>
                       <div className="dash-person">
-                        <span className="dash-avatar sm">{initials(person.firstName, person.lastName)}</span>
-                        <span>{person.firstName ? `${person.firstName} ${person.lastName}` : 'Unassigned'}</span>
+                        <span className="dash-avatar sm">{initials(parts[0], parts[1])}</span>
+                        <span>{person}</span>
                       </div>
                       <div className="dash-task-meta">
-                        <span>{dueLabel(task.dueDate)}</span>
-                        <b>{progress}%</b>
-                        <span className={`badge ${status.badge}`}>{status.label}</span>
+                        <span>{dueLabel(task.dueDate || undefined)}</span>
+                        <b>{task.percent}%</b>
+                        <span className={`badge ${task.badge}`}>{task.statusLabel}</span>
                       </div>
                       <div className="dash-bar" aria-hidden="true">
-                        <span style={{ width: `${progress}%` }} />
+                        <span style={{ width: `${task.percent}%` }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
+              {plannerFailed && <p className="muted">Couldn&apos;t load Microsoft Planner tasks. GoStaff tasks are still shown.</p>}
             </>
           )}
           {centerPane === 'actions' && (
@@ -558,7 +597,10 @@ export default function AdminDashboard() {
           {employees !== null && team.length === 0 && <div className="dash-empty">No employees to show</div>}
           <div className="dash-team">
             {team.map((person) => {
-              const status = teamStatus(attendanceByCode.get(person.employeeCode));
+              const marked = attendanceByCode.get(person.employeeCode);
+              const status = !marked && weekOffs.includes(new Date().getDay())
+                ? { label: 'Week off', pill: 'gray' }
+                : teamStatus(marked);
               return (
                 <div key={person.id} className="dash-row">
                   <span className="dash-avatar sm">{initials(person.firstName, person.lastName)}</span>

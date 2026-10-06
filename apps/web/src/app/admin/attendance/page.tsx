@@ -90,6 +90,7 @@ const emptyFilters = { from: '', to: '', employee: '', department: '', status: '
 
 export default function AdminAttendancePage() {
   const [rows, setRows] = useState<any[]>(() => cachedRows || []);
+  const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [filters, setFilters] = useState(emptyFilters);
   const load = useCallback(() => {
     api('/attendance')
@@ -101,6 +102,11 @@ export default function AdminAttendancePage() {
   }, []);
   useEffect(() => {
     load();
+    api<{ days: number[] }>('/leave/week-off')
+      .then((row) => {
+        if (Array.isArray(row.days)) setWeekOffs(row.days);
+      })
+      .catch(() => undefined);
     window.addEventListener('gs-attendance-changed', load);
     return () => window.removeEventListener('gs-attendance-changed', load);
   }, [load]);
@@ -156,7 +162,11 @@ export default function AdminAttendancePage() {
         <div>
           <p className="att-kicker">People</p>
           <h1>Attendance</h1>
-          <p className="att-sub">Daily records, office checks, and approvals.</p>
+          <p className="att-sub">
+            {weekOffs.includes(new Date().getDay())
+              ? 'Today is a weekly off. Daily records, office checks, and approvals.'
+              : 'Daily records, office checks, and approvals.'}
+          </p>
         </div>
         <AttendanceNav />
       </header>

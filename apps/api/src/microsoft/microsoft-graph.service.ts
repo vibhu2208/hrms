@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { MICROSOFT_DELEGATED_SCOPES } from './microsoft.constants';
+import { MICROSOFT_DELEGATED_SCOPES, scopeIncludes } from './microsoft.constants';
 
 export type MeetingAttendee = { name: string; email: string };
 
@@ -317,7 +317,7 @@ export class MicrosoftGraphService {
           client_secret: cfg.clientSecret,
           grant_type: 'refresh_token',
           refresh_token: account.refreshToken,
-          scope: MICROSOFT_DELEGATED_SCOPES,
+          scope: account.scope?.trim() || MICROSOFT_DELEGATED_SCOPES,
         }),
       },
     );
@@ -325,6 +325,7 @@ export class MicrosoftGraphService {
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
+      scope?: string;
       error?: string;
       error_description?: string;
     };
@@ -350,11 +351,133 @@ export class MicrosoftGraphService {
       data: {
         accessToken: tokenData.access_token,
         ...(tokenData.refresh_token ? { refreshToken: tokenData.refresh_token } : {}),
+        ...(tokenData.scope ? { scope: tokenData.scope } : {}),
         expiresAt: new Date(Date.now() + expiresIn * 1000),
       },
     });
     return { token: tokenData.access_token };
   }
+
+  async plannerConsent(userId: string): Promise<
+    | { ok: true; canWrite: boolean }
+    | { ok: false; status: 'needsConsent' | 'needsPlannerConsent' | 'error'; message: string }
+  > {
+    if (!this.microsoftConfig()) {
+      return { ok: false, status: 'error', message: 'Microsoft sign-in is not set up yet.' };
+    }
+    const account = await this.prisma.microsoftAccount.findUnique({
+      where: { userId },
+      select: { refreshToken: true, scope: true },
+    });
+    if (!account || !account.refreshToken) {
+      return {
+        ok: false,
+        status: 'needsConsent',
+        message: 'Sign in with Microsoft to see your Planner tasks.',
+      };
+    }
+    if (!scopeIncludes(account.scope, 'Tasks.Read') && !scopeIncludes(account.scope, 'Tasks.ReadWrite')) {
+      return {
+        ok: false,
+        status: 'needsPlannerConsent',
+        message: 'Connect Microsoft Planner to see those tasks.',
+      };
+    }
+    return { ok: true, canWrite: scopeIncludes(account.scope, 'Tasks.ReadWrite') };
+  }
+
+  async graphRequest<T>(
+    userId: string,
+    path: string,
+    init?: { method?: string; body?: unknown; headers?: Record<string, string> },
+  ): Promise<GraphCall<T>> {
+    const access = await this.accessToken(userId);
+    if (!('token' in access) || !access.token) {
+      return {
+        ok: false,
+        status: 'token' in access ? 'error' : access.status,
+        message: 'token' in access ? 'Microsoft could not be reached.' : access.message || 'Microsoft could not be reached.',
+      };
+    }
+    return this.graphRequestWithToken(userId, path, access.token, init, false);
+  }
+
+  private async graphRequestWithToken<T>(
+    userId: string,
+    path: string,
+    token: string,
+    init: { method?: string; body?: unknown; headers?: Record<string, string> } | undefined,
+    retried: boolean,
+  ): Promise<GraphCall<T>> {
+    let url: string;
+    try {
+      url = graphUrl(path);
+    } catch {
+      return { ok: false, status: 'error', message: 'Microsoft Graph could not be reached.' };
+    }
+    const res = await fetch(url, {
+      method: init?.method || 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...init?.headers,
+      },
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+    });
+    if (res.status === 401 && !retried) {
+      await res.body?.cancel();
+      const again = await this.accessToken(userId, true);
+      if (!('token' in again) || !again.token) {
+        return {
+          ok: false,
+          status: !('token' in again) && again.status === 'needsConsent' ? 'needsConsent' : 'expired',
+          message: 'Your Microsoft session expired. Sign in again.',
+        };
+      }
+      return this.graphRequestWithToken(userId, path, again.token, init, true);
+    }
+    const etag = res.headers.get('etag') || undefined;
+    const data = (res.status === 204 ? {} : await res.json().catch(() => ({}))) as T;
+    if (res.status === 401) {
+      return { ok: false, status: 'expired', message: 'Your Microsoft session expired. Sign in again.' };
+    }
+    if (res.status === 403) {
+      return { ok: false, status: 'forbidden', message: 'Microsoft denied this request.' };
+    }
+    if (!res.ok) {
+      const route = path.split('?')[0].replace(/\/[^/]{12,}/g, '/{id}');
+      const graphError = data && typeof data === 'object' && 'error' in data
+        ? (data as { error?: { code?: string; message?: string } }).error
+        : undefined;
+      const detail = (graphError?.message || '').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+/gi, '').slice(0, 180);
+      this.logger.warn(`Graph ${init?.method || 'GET'} failed with ${res.status} ${route} ${graphError?.code || ''} ${detail}`.trim());
+      return {
+        ok: false,
+        status: 'error',
+        httpStatus: res.status,
+        message: 'Microsoft Graph could not be reached.',
+      };
+    }
+    const bodyEtag = data && typeof data === 'object' && '@odata.etag' in data
+      ? String((data as { '@odata.etag'?: string })['@odata.etag'] || '')
+      : '';
+    return { ok: true, data, etag: etag || bodyEtag || undefined };
+  }
+}
+
+type GraphCall<T> =
+  | { ok: true; data: T; etag?: string }
+  | {
+      ok: false;
+      status: 'needsConsent' | 'expired' | 'forbidden' | 'error';
+      message: string;
+      httpStatus?: number;
+    };
+
+function graphUrl(path: string) {
+  if (path.startsWith('https://graph.microsoft.com/')) return path;
+  if (path.startsWith('/') && !path.startsWith('//')) return `https://graph.microsoft.com/v1.0${path}`;
+  throw new Error('Invalid Graph path');
 }
 
 function extractJoinUrl(event: GraphEvent) {
