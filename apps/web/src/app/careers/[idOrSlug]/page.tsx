@@ -5,6 +5,22 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
 
+function jobMeta(job: {
+  title?: string;
+  designation?: { name?: string } | null;
+  department?: { name?: string } | null;
+  location?: string | null;
+  employmentType?: string | null;
+}) {
+  const parts = [
+    job.designation?.name && job.designation.name !== job.title ? job.designation.name : null,
+    job.department?.name,
+    job.location,
+    job.employmentType?.replace('_', ' '),
+  ];
+  return parts.filter(Boolean).join(' | ');
+}
+
 export default function CareerJobPage() {
   const params = useParams();
   const idOrSlug = String(params.idOrSlug || '');
@@ -68,16 +84,7 @@ export default function CareerJobPage() {
       {job && (
         <div className="careers-detail">
           <div>
-            <p className="muted" style={{ marginBottom: 4 }}>
-              {[
-                job.designation?.name && job.designation.name !== job.title ? job.designation.name : null,
-                job.department?.name,
-                job.location,
-                job.employmentType?.replace('_', ' '),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
+            <p className="muted" style={{ marginBottom: 4 }}>{jobMeta(job)}</p>
             <h1 style={{ marginTop: 0 }}>{job.title}</h1>
             {job.salaryRange && <p className="muted">{job.salaryRange}</p>}
             {job.description && (

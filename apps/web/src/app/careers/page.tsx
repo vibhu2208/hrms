@@ -4,6 +4,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { publicApi } from '@/lib/api';
 
+function jobMeta(job: {
+  title?: string;
+  designation?: { name?: string } | null;
+  department?: { name?: string } | null;
+  location?: string | null;
+  employmentType?: string | null;
+}) {
+  const parts = [
+    job.designation?.name && job.designation.name !== job.title ? job.designation.name : null,
+    job.department?.name,
+    job.location,
+    job.employmentType?.replace('_', ' '),
+  ];
+  return parts.filter(Boolean).join(' | ');
+}
+
 export default function CareersPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -48,16 +64,7 @@ export default function CareersPage() {
           >
             <div>
               <h2>{job.title}</h2>
-              <div className="muted">
-                {[
-                  job.designation?.name && job.designation.name !== job.title ? job.designation.name : null,
-                  job.department?.name,
-                  job.location,
-                  job.employmentType?.replace('_', ' '),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </div>
+              <div className="muted">{jobMeta(job)}</div>
               {job.salaryRange && <div className="muted" style={{ marginTop: 4 }}>{job.salaryRange}</div>}
             </div>
             <span className="btn" style={{ pointerEvents: 'none' }}>View & apply</span>
