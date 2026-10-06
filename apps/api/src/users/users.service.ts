@@ -498,10 +498,10 @@ export class UsersService {
     employeeCode: string;
     password: string;
   }): Promise<{ delivered: boolean; mode: string; error?: string }> {
-    const origin = (this.config.get<string>('CORS_ORIGIN') || 'http://localhost:3000').replace(
-      /\/$/,
-      '',
-    );
+    const origin = (this.config.get<string>('WEB_ORIGIN') || this.config.get<string>('CORS_ORIGIN') || 'http://localhost:3000')
+      .split(',')[0]
+      .trim()
+      .replace(/\/$/, '');
     const text =
       `Hi ${input.firstName},\n\n` +
       `Your Go Staff account is ready.\n\n` +

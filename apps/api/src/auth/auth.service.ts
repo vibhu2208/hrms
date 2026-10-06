@@ -93,7 +93,7 @@ export class AuthService {
   }
 
   webOrigin() {
-    return (this.config.get<string>('CORS_ORIGIN') || 'http://localhost:3000')
+    return (this.config.get<string>('WEB_ORIGIN') || this.config.get<string>('CORS_ORIGIN') || 'http://localhost:3000')
       .split(',')[0]
       .trim()
       .replace(/\/$/, '');
