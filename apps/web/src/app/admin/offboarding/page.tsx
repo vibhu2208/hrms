@@ -183,7 +183,7 @@ export default function AdminOffboardingPage() {
   const [all, setAll] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<any | null>(null);
+  const [detail, setDetail] = useState<Record<string, any> | null>(null);
   const [caseOpen, setCaseOpen] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

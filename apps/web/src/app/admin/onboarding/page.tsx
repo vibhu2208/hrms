@@ -190,7 +190,7 @@ function OnboardingPageInner() {
 
   const [all, setAll] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<any | null>(null);
+  const [detail, setDetail] = useState<Record<string, any> | null>(null);
   const [caseOpen, setCaseOpen] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [designations, setDesignations] = useState<any[]>([]);

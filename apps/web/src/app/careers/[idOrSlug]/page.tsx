@@ -74,7 +74,7 @@ export default function CareerJobPage() {
                 job.department?.name,
                 job.location,
                 job.employmentType?.replace('_', ' '),
-              ]}
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
