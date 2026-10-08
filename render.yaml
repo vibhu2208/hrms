@@ -4,8 +4,10 @@ services:
     runtime: node
     plan: free
     rootDir: .
+    # API only. Frontend is on Vercel (https://hrms-app6.vercel.app).
+    # If the dashboard Start Command still says `npm run dev`, change it to `npm start`.
     buildCommand: npm install && npm run build -w @go-staff/shared && npm run prisma:generate -w @go-staff/api && npm run build -w @go-staff/api
-    startCommand: npm run start -w @go-staff/api
+    startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: "20"

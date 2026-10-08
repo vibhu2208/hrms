@@ -7,10 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @go-staff/api\" \"npm run dev -w @go-staff/web\"",
+    "dev": "node ./scripts/dev.js",
     "dev:api": "npm run dev -w @go-staff/api",
     "dev:web": "npm run dev -w @go-staff/web",
     "build": "npm run build -w @go-staff/shared && npm run build -w @go-staff/api && npm run build -w @go-staff/web",
+    "start": "npm run start -w @go-staff/api",
     "db:generate": "npm run prisma:generate -w @go-staff/api",
     "db:migrate": "npm run prisma:migrate -w @go-staff/api",
     "db:seed": "npm run prisma:seed -w @go-staff/api",
