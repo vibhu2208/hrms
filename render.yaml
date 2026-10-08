@@ -24,9 +24,9 @@ services:
       - key: CAREERS_PUBLIC_URL
         value: https://hrms-app6.vercel.app/careers
       - key: MS_REDIRECT_URI
-        value: https://hrms-snvh.onrender.com/api/v1/auth/microsoft/callback
+        value: https://hrms-oo02.onrender.com/api/v1/auth/microsoft/callback
       - key: GOOGLE_REDIRECT_URI
-        value: https://hrms-snvh.onrender.com/api/v1/calendar/callback
+        value: https://hrms-oo02.onrender.com/api/v1/calendar/callback
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
