@@ -8,10 +8,21 @@ async function bootstrap() {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
   app.setGlobalPrefix('api/v1');
+  const configuredOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+  const allowedOrigins = new Set(configuredOrigins);
+  allowedOrigins.add('https://hrms-app6.vercel.app');
   app.enableCors({
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean)
-      : true,
+    origin(requestOrigin, callback) {
+      if (!requestOrigin) {
+        callback(null, true);
+        return;
+      }
+      const origin = requestOrigin.replace(/\/$/, '');
+      callback(null, allowedOrigins.has(origin) ? origin : false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(
