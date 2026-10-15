@@ -35,13 +35,20 @@ export function getStoredUser(): AuthUser | null {
   return raw ? JSON.parse(raw) : null;
 }
 
+function tenantHeaders(headers: Record<string, string>) {
+  if (typeof window !== 'undefined') {
+    headers['X-Tenant-Host'] = window.location.host;
+  }
+  return headers;
+}
+
 export async function api<T = any>(
   path: string,
   options: RequestInit & { formData?: FormData } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
+  const headers = tenantHeaders({
     ...(options.headers as Record<string, string>),
-  };
+  });
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!options.formData && options.body && !(options.body instanceof FormData)) {
@@ -75,9 +82,9 @@ export async function publicApi<T = any>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
+  const headers = tenantHeaders({
     ...(options.headers as Record<string, string>),
-  };
+  });
   if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
@@ -105,4 +112,40 @@ export function canAccessBusinessData(code?: string) {
 
 export function hasAnyRole(code: string | undefined, roles: string[]) {
   return !!code && roles.includes(code);
+}
+
+const PLATFORM_TOKEN = 'gs_platform_token';
+
+export function getPlatformToken() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(PLATFORM_TOKEN);
+}
+
+export function setPlatformSession(token: string) {
+  localStorage.setItem(PLATFORM_TOKEN, token);
+}
+
+export function clearPlatformSession() {
+  localStorage.removeItem(PLATFORM_TOKEN);
+}
+
+export async function platformApi<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = tenantHeaders({
+    ...(options.headers as Record<string, string>),
+  });
+  const token = getPlatformToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (res.status === 401) {
+    clearPlatformSession();
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    const message = Array.isArray(data?.message) ? data.message.join(', ') : data?.message || data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data as T;
 }

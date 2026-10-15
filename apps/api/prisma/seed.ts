@@ -5,7 +5,20 @@ import * as crypto from 'crypto';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Go Staff...');
+  const profile = (process.env.SEED_PROFILE || 'aithworld').trim();
+  if (profile === 'minimal') {
+    const { seedMinimalCompany } = await import('./seed-minimal');
+    await seedMinimalCompany(prisma);
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email: 'connect@aithworld.com' } });
+  if (existing) {
+    console.log('Aith World already seeded.');
+    return;
+  }
+
+  console.log('Seeding Aith World...');
 
   const resources = [
     'EMPLOYEES', 'ATTENDANCE', 'LEAVE', 'TASKS', 'PERFORMANCE',

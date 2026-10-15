@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MonthGrid, formatDay, parseIso } from '@/components/day-calendar';
 import { api } from '@/lib/api';
 
 type Verification = {
@@ -82,6 +84,21 @@ function statusLabel(status?: string) {
 
 const MISSED_MS = 24 * 60 * 60 * 1000;
 
+const STATUS_OPTIONS = [
+  ['', 'All'],
+  ['EARLY', 'Early'],
+  ['PRESENT', 'On time'],
+  ['LATE', 'Late'],
+  ['OVERTIME', 'Overtime'],
+  ['HALF_DAY', 'Half day'],
+  ['WFH', 'Remote'],
+  ['ABSENT', 'Absent'],
+  ['LEAVE', 'Leave'],
+  ['WEEKEND', 'Week off'],
+  ['PENDING_APPROVAL', 'Pending'],
+  ['REJECTED', 'Rejected'],
+] as const;
+
 function localInput(value: string) {
   const date = new Date(value);
   const pad = (part: number) => String(part).padStart(2, '0');
@@ -106,11 +123,19 @@ export default function MyAttendance() {
   const [history, setHistory] = useState<any[]>([]);
   const [weekOffs, setWeekOffs] = useState<number[]>([0, 6]);
   const [filters, setFilters] = useState({ from: '', to: '', status: '' });
+  const [dateFocus, setDateFocus] = useState<'from' | 'to'>('from');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const [calCursor, setCalCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [geoError, setGeoError] = useState('');
   const [reason, setReason] = useState('');
   const [missedForms, setMissedForms] = useState<Record<string, { reason: string; checkOut: string }>>({});
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [markOpen, setMarkOpen] = useState(false);
   const lastFix = useRef<Record<string, unknown> | null>(null);
 
   const loadHistory = useCallback(async () => {
@@ -150,6 +175,17 @@ export default function MyAttendance() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!markOpen && !filterOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (filterOpen) setFilterOpen(false);
+      else setMarkOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [markOpen, filterOpen]);
 
   useEffect(() => {
     api<{ days: number[] }>('/leave/week-off')
@@ -321,24 +357,45 @@ export default function MyAttendance() {
               : 'Not marked';
 
   return (
-    <div className="att-page">
+    <div className="att-page emp-att">
       <header className="att-head">
         <div>
           <p className="att-kicker">{todayLabel}</p>
-          <h1>Attendance</h1>
+          <h1>
+            <span className="emp-att-long">Attendance</span>
+            <span className="emp-att-short">Attendence</span>
+          </h1>
         </div>
-        <button className="btn secondary" type="button" onClick={refresh} disabled={busy}>
-          {busy ? 'Checking…' : 'Refresh'}
-        </button>
+        <div className="att-head-actions">
+          <button className="btn" type="button" onClick={() => setMarkOpen(true)}>
+            {checkedIn ? 'Checkout' : 'Check-in'}
+          </button>
+          <button className="att-icon-btn" type="button" aria-label={busy ? 'Checking' : 'Refresh'} onClick={refresh} disabled={busy}>
+            <svg className={busy ? 'is-spin' : ''} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-15.5-6.3L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 15.5 6.3L21 16" />
+              <path d="M21 21v-5h-5" />
+            </svg>
+          </button>
+        </div>
       </header>
 
-      {msg && <p className="att-banner">{msg}</p>}
+      {msg && !markOpen && <p className="att-banner">{msg}</p>}
 
-      <section className="att-panel">
-        <div className="att-panel-head">
-          <h2>Today</h2>
-          <span className={`att-pill${checkedIn && !today?.checkOut ? ' is-solid' : ''}`}>{stateLabel}</span>
-        </div>
+      {markOpen && typeof document !== 'undefined' && createPortal(
+        <div className="lv-pop" role="presentation" onMouseDown={() => setMarkOpen(false)}>
+          <div className="lv-card emp-mark-card" role="dialog" aria-labelledby="mark-attendance-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="lv-card-head">
+              <div>
+                <p className="att-kicker">{todayLabel}</p>
+                <h2 id="mark-attendance-title">Mark attendance</h2>
+              </div>
+              <div className="emp-mark-head">
+                <span className={`att-pill${checkedIn && !today?.checkOut ? ' is-solid' : ''}`}>{stateLabel}</span>
+                <button className="lv-close" type="button" onClick={() => setMarkOpen(false)}>Close</button>
+              </div>
+            </div>
 
         <div className="att-split">
           <article className={`att-check${verification?.locationVerified ? ' is-ok' : ''}`}>
@@ -391,16 +448,17 @@ export default function MyAttendance() {
         {checkedIn && (today?.status === 'PRESENT' || today?.status === 'EARLY') && today.approvalStatus === 'APPROVED' && (
           <p className="att-sub">Approved by HR.</p>
         )}
+        {msg && <p className="att-banner">{msg}</p>}
 
         <div className="att-actions">
           {verification?.canAutoMark && (
             <button className="btn" type="button" onClick={checkIn} disabled={busy}>
-              Mark attendance
+              Check-in
             </button>
           )}
           {checkedIn && today?.approvalStatus !== 'PENDING' && (
             <button className="btn secondary" type="button" onClick={checkOut} disabled={busy || !!today?.checkOut}>
-              {today?.checkOut ? 'Checked out' : 'Check out'}
+              Checkout
             </button>
           )}
         </div>
@@ -425,7 +483,10 @@ export default function MyAttendance() {
             </button>
           </div>
         )}
-      </section>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {missed.length > 0 && (
         <section className="att-panel">
@@ -484,46 +545,144 @@ export default function MyAttendance() {
       <section className="att-panel">
         <div className="att-panel-head">
           <h2>Record</h2>
-          <span className="att-count">
-            {filtering && (
-              <button className="att-clear" type="button" onClick={() => setFilters({ from: '', to: '', status: '' })}>
-                Clear
+          <div className="emp-record-actions">
+            <span className="att-count">
+              {history.length || records.length ? `${filteredHistory.length} of ${records.length}` : 'No days yet'}
+            </span>
+            {records.length > 0 && (
+              <button className={`btn secondary${filtering ? ' is-on' : ''}`} type="button" onClick={() => setFilterOpen(true)}>
+                Filter
               </button>
-            )}{' '}
-            {history.length || records.length ? `${filteredHistory.length} of ${records.length}` : 'No days yet'}
-          </span>
+            )}
+          </div>
         </div>
-        {records.length > 0 && (
-          <div className="att-filters">
-            <label>
-              From
-              <input className="input" type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
-            </label>
-            <label>
-              To
-              <input className="input" type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} />
-            </label>
-            <label>
-              Status
-              <select className="select" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-                <option value="">All</option>
-                <option value="EARLY">Early</option>
-                <option value="PRESENT">On time</option>
-                <option value="LATE">Late</option>
-                <option value="OVERTIME">Overtime</option>
-                <option value="HALF_DAY">Half day</option>
-                <option value="WFH">Remote</option>
-                <option value="ABSENT">Absent</option>
-                <option value="LEAVE">Leave</option>
-                <option value="WEEKEND">Week off</option>
-                <option value="PENDING_APPROVAL">Pending</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </label>
+        {filterOpen && typeof document !== 'undefined' && createPortal(
+          <div className="lv-pop" role="presentation" onMouseDown={() => setFilterOpen(false)}>
+            <div className="lv-card emp-filter-card" role="dialog" aria-labelledby="record-filter-title" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="lv-card-head">
+                <div>
+                  <p className="att-kicker">Record</p>
+                  <h2 id="record-filter-title">Filter</h2>
+                </div>
+                <button className="lv-close" type="button" onClick={() => setFilterOpen(false)}>Close</button>
+              </div>
+              <div className="att-filters emp-att-filters">
+                <button
+                  className={`emp-att-date${calOpen && dateFocus === 'from' ? ' is-on' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    setDateFocus('from');
+                    setCalOpen(true);
+                  }}
+                >
+                  <small>From</small>
+                  <strong>{filters.from ? formatDay(filters.from) : 'Date'}</strong>
+                </button>
+                <button
+                  className={`emp-att-date${calOpen && dateFocus === 'to' ? ' is-on' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    setDateFocus('to');
+                    setCalOpen(true);
+                  }}
+                >
+                  <small>To</small>
+                  <strong>{filters.to ? formatDay(filters.to) : 'Date'}</strong>
+                </button>
+              </div>
+              {calOpen && (
+                <div className="emp-att-cal">
+                  <MonthGrid
+                    cursor={calCursor}
+                    onCursor={setCalCursor}
+                    weekOffs={weekOffs}
+                    start={filters.from}
+                    end={filters.to || filters.from}
+                    onPick={(iso) => {
+                      const picked = parseIso(iso);
+                      setCalCursor(new Date(picked.getFullYear(), picked.getMonth(), 1));
+                      if (dateFocus === 'from' || !filters.from || iso < filters.from) {
+                        const nextTo = filters.to && iso <= filters.to ? filters.to : '';
+                        setFilters({ ...filters, from: iso, to: nextTo });
+                        setDateFocus(nextTo ? 'from' : 'to');
+                        if (nextTo) setCalOpen(false);
+                        return;
+                      }
+                      setFilters({ ...filters, to: iso });
+                      setDateFocus('from');
+                      setCalOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+              <p className="emp-filter-label">Status</p>
+              <div className="emp-filter-status">
+                {STATUS_OPTIONS.map(([value, label]) => (
+                  <button
+                    key={value || 'all'}
+                    type="button"
+                    className={filters.status === value ? 'is-on' : ''}
+                    onClick={() => setFilters({ ...filters, status: value })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="att-actions">
+                <button
+                  className="btn secondary"
+                  type="button"
+                  disabled={!filtering}
+                  onClick={() => {
+                    setFilters({ from: '', to: '', status: '' });
+                    setCalOpen(false);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+        {filteredHistory.length > 0 && (
+          <div className="emp-days">
+            {filteredHistory.map((row) => {
+              const day = dayParts(row.date);
+              const map = row.latitude != null && row.longitude != null
+                ? `https://www.google.com/maps?q=${row.latitude},${row.longitude}`
+                : '';
+              return (
+                <article className="emp-day" key={row.id}>
+                  <div className="emp-day-top">
+                    <div className="att-when">
+                      <b>{day.weekday}</b>
+                      <span>{day.date}</span>
+                    </div>
+                    <span className="att-pill">{isMissedClockOut(row) ? 'Missed clock-out' : dayMark(row.status, row.overtimeMinutes)}</span>
+                  </div>
+                  <dl>
+                    <div><dt>Approval</dt><dd>{approvalLabel(row.approvalStatus)}</dd></div>
+                    <div><dt>In</dt><dd>{clock(row.checkIn)}</dd></div>
+                    <div><dt>Out</dt><dd>{clock(row.checkOut)}</dd></div>
+                    <div><dt>Distance</dt><dd>{row.officeDistance != null ? `${Math.round(row.officeDistance)} m` : '—'}</dd></div>
+                    <div><dt>Network</dt><dd>{row.networkVerified ? 'Verified' : 'Not verified'}</dd></div>
+                    <div>
+                      <dt>Location</dt>
+                      <dd>
+                        {map ? (
+                          <a className="att-map" href={map} target="_blank" rel="noreferrer">Map</a>
+                        ) : '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              );
+            })}
           </div>
         )}
         {filteredHistory.length > 0 && (
-          <div className="att-table-wrap">
+          <div className="att-table-wrap emp-att-table">
             <table className="att-table">
               <thead>
                 <tr>

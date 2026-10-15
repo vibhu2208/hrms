@@ -103,11 +103,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<any[]>([]);
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
+  const [companyName, setCompanyName] = useState('Admin command center');
   const searchRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('gs_sidebar') === 'collapsed');
+    api<{ name: string }>('/tenant/current')
+      .then((tenant) => {
+        if (tenant.name) setCompanyName(tenant.name);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -258,7 +264,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <Icon d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
             </button>
           </div>
-          <span className="admin-brand-sub">Admin command center</span>
+          <span className="admin-brand-sub">{companyName}</span>
         </div>
         <nav className="admin-nav">
           {overview.length > 0 && (

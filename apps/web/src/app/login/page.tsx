@@ -4,18 +4,43 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL, api, isAdminRole, setSession } from '@/lib/api';
 
+const AITH_DEMOS = [
+  { label: 'Owner', email: 'connect@aithworld.com' },
+  { label: 'HR', email: 'hr@gostaff.local' },
+  { label: 'Employee', email: 'employee@gostaff.local' },
+];
+
+const TECH_DEMOS = [{ label: 'Owner', email: 'owner@techthrive.local' }];
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState('connect@aithworld.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [companyName, setCompanyName] = useState('Go Staff');
+  const [companySlug, setCompanySlug] = useState('');
+  const [msHref, setMsHref] = useState(`${API_URL}/auth/microsoft`);
 
   useEffect(() => {
     const message = params.get('error');
     if (message) setError(message);
   }, [params]);
+
+  useEffect(() => {
+    const host = window.location.host;
+    setMsHref(`${API_URL}/auth/microsoft?host=${encodeURIComponent(host)}`);
+    api<{ name: string; slug: string }>('/tenant/current')
+      .then((tenant) => {
+        if (tenant.name) setCompanyName(tenant.name);
+        setCompanySlug(tenant.slug || '');
+      })
+      .catch(() => {});
+  }, []);
+
+  const demos = companySlug === 'techthrive' ? TECH_DEMOS : companySlug === 'aithworld' ? AITH_DEMOS : [];
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,7 +55,8 @@ function LoginForm() {
       const role = res.user.role?.code;
       router.push(isAdminRole(role) ? '/admin' : '/employee');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      const message = err?.message === 'Unauthorized' ? 'The email or password is not correct.' : err?.message;
+      setError(message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -38,48 +64,126 @@ function LoginForm() {
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        <div className="muted" style={{ marginBottom: 4 }}>
-          Business command center
-        </div>
-        <h1>Go Staff</h1>
-        <p className="muted" style={{ marginTop: 0, marginBottom: '1.5rem' }}>
-          Sign in with your company Microsoft 365 account, or with the email and password issued by HR.
-        </p>
-        {error && <div className="error">{error}</div>}
-        <a
-          className="btn"
-          href={`${API_URL}/auth/microsoft`}
-          style={{ display: 'block', textAlign: 'center', marginBottom: '1rem' }}
-        >
-          Sign in with Microsoft
-        </a>
-        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Use the company email already saved on your employee record.
-        </p>
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label className="label">Email</label>
-            <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <div className="login-stage">
+        <img
+          className="login-skyline"
+          src="/login-skyline.png"
+          alt=""
+          aria-hidden="true"
+        />
+        <main className="login-main">
+          <div className="login-brand">
+            <strong>Go Staff</strong>
+            <span>{companyName}</span>
           </div>
-          <div className="field">
-            <label className="label">Password</label>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+          <div className="login-card">
+          <p className="login-kicker">Welcome back</p>
+          <h1>Sign in</h1>
+          <p className="login-lead">
+            Use your company Microsoft 365 account, or the email and password issued by HR.
+          </p>
+          {error && <div className="error">{error}</div>}
+          <a className="login-ms" href={msHref}>
+            <MicrosoftMark />
+            Sign in with Microsoft
+          </a>
+          <div className="login-or">
+            <span>or continue with password</span>
           </div>
-          <button className="btn secondary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in with password'}
-          </button>
-        </form>
-        <p className="muted" style={{ fontSize: 13, marginTop: '1.25rem' }}>
-          Demo password login: connect@aithworld.com / hr@gostaff.local / employee@gostaff.local — password123
-        </p>
+          <form onSubmit={onSubmit}>
+            <div className="field">
+              <label className="label" htmlFor="login-email">
+                Work email
+              </label>
+              <input
+                id="login-email"
+                className="input"
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+              />
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="login-password">
+                Password
+              </label>
+              <div className="login-pass">
+                <input
+                  id="login-password"
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  className="login-eye"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+            <button className="btn login-submit" disabled={loading}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+          {demos.length > 0 && (
+          <div className="login-demos">
+            <span>Try a demo</span>
+            <div>
+              {demos.map((demo) => (
+                <button
+                  key={demo.email}
+                  type="button"
+                  className={email === demo.email ? 'is-on' : ''}
+                  onClick={() => {
+                    setEmail(demo.email);
+                    setPassword('password123');
+                    setError('');
+                  }}
+                >
+                  {demo.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          )}
+          </div>
+        </main>
+        <aside className="login-aside">
+          <blockquote className="login-quote">
+            <span className="login-quote-mark" aria-hidden="true">“</span>
+            <p>
+              Attendance, leave, and the work of the day finally sit together. The morning feels quieter when the company is this easy to see.
+            </p>
+            <span className="login-quote-mark login-quote-mark-end" aria-hidden="true">”</span>
+            <footer>
+              <strong>Go Staff</strong>
+              <span>For the people who keep the day moving</span>
+            </footer>
+          </blockquote>
+        </aside>
       </div>
     </div>
+  );
+}
+
+function MicrosoftMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
   );
 }
 

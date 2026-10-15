@@ -45,7 +45,7 @@ const LEGEND = [
   ['present', 'Present'],
   ['late', 'Late'],
   ['half', 'Half Day'],
-  ['off', 'Day Off'],
+  ['leave', 'Leave'],
   ['holiday', 'Holiday'],
   ['weekend', 'Weekend'],
 ] as const;
@@ -62,6 +62,10 @@ function parseKey(key: string) {
   return new Date(year, month - 1, day);
 }
 
+function isFutureDay(value: string | Date) {
+  return dayKey(value) > dayKey(new Date());
+}
+
 function minutesWorked(row: AttendanceRow) {
   if (row.workingMinutes != null) return row.workingMinutes;
   if (!row.checkIn || !row.checkOut) return 0;
@@ -75,15 +79,6 @@ function clock(value?: string | null) {
 
 function hoursLabel(minutes: number) {
   return `${(minutes / 60).toFixed(2)} hours`;
-}
-
-function countedDays(start: Date, end: Date, weekOffs: number[]) {
-  const off = new Set(weekOffs);
-  let count = 0;
-  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
-    if (!off.has(cursor.getDay())) count += 1;
-  }
-  return count;
 }
 
 function overtimeLabel(minutes: number) {
@@ -112,7 +107,7 @@ function employmentLabel(value?: string | null) {
   return 'Full time';
 }
 
-function statusCopy(status: string, overtimeMinutes?: number | null) {
+function statusCopy(status: string, overtimeMinutes?: number | null, notes?: string | null) {
   const overtime = (overtimeMinutes || 0) > 0;
   if (status === 'WFH') return { label: 'Work From Home', tone: 'wfh' };
   if (status === 'EARLY') return { label: overtime ? 'Early · Overtime' : 'Early', tone: 'ontime' };
@@ -120,7 +115,7 @@ function statusCopy(status: string, overtimeMinutes?: number | null) {
   if (status === 'HALF_DAY') return { label: 'Half Day', tone: 'half' };
   if (status === 'ABSENT' || status === 'REJECTED') return { label: 'Absent', tone: 'absent' };
   if (status === 'HOLIDAY') return { label: 'Holiday', tone: 'holiday' };
-  if (status === 'LEAVE') return { label: 'Day Off', tone: 'off' };
+  if (status === 'LEAVE') return { label: notes?.trim() || 'Leave', tone: 'leave' };
   if (status === 'PENDING_APPROVAL') return { label: 'Pending', tone: 'pending' };
   if (status === 'PRESENT' && overtime) return { label: 'Overtime', tone: 'ontime' };
   return { label: 'On Time', tone: 'ontime' };
@@ -130,7 +125,7 @@ function markFor(status?: string) {
   if (!status) return 'blank';
   if (status === 'LATE') return 'late';
   if (status === 'HALF_DAY') return 'half';
-  if (status === 'LEAVE') return 'off';
+  if (status === 'LEAVE') return 'leave';
   if (status === 'HOLIDAY') return 'holiday';
   if (status === 'ABSENT' || status === 'REJECTED') return 'absent';
   if (status === 'PRESENT' || status === 'EARLY' || status === 'WFH') return 'present';
@@ -401,7 +396,7 @@ export function EmployeeAttendanceProfile({
     const holidaySet = new Set(holidays.map((row) => dayKey(row.date)));
     const leaveDays = new Set<string>();
     leaves
-      .filter((row) => row.status === 'APPROVED' || row.status === 'PENDING')
+      .filter((row) => row.status === 'APPROVED')
       .forEach((row) => {
         const start = parseKey(dayKey(row.startDate));
         const end = parseKey(dayKey(row.endDate));
@@ -415,13 +410,27 @@ export function EmployeeAttendanceProfile({
       const weekend = weekOffs.includes(date.getDay());
       const record = byDate.get(key);
       let mark = 'blank';
-      if (record) mark = markFor(record.status);
+      if (leaveDays.has(key)) mark = 'leave';
+      else if (record) mark = markFor(record.status);
       else if (holidaySet.has(key)) mark = 'holiday';
       else if (weekend) mark = 'weekend';
-      else if (leaveDays.has(key)) mark = 'off';
       return { day: index + 1, mark };
     });
   }, [attendance, cursor, holidays, leaves, weekOffs]);
+
+  const leaveByDay = useMemo(() => {
+    const map = new Map<string, LeaveRow>();
+    leaves
+      .filter((row) => row.status === 'APPROVED')
+      .forEach((row) => {
+        const start = parseKey(dayKey(row.startDate));
+        const end = parseKey(dayKey(row.endDate));
+        for (let cursorDate = new Date(start); cursorDate <= end; cursorDate.setDate(cursorDate.getDate() + 1)) {
+          map.set(dayKey(cursorDate), row);
+        }
+      });
+    return map;
+  }, [leaves]);
 
   const history = useMemo(() => {
     const monthStart = new Date(cursor.year, cursor.month, 1);
@@ -435,24 +444,34 @@ export function EmployeeAttendanceProfile({
     const marked = new Set<string>();
     attendance.forEach((row) => {
       const date = new Date(row.date);
-      if (date >= monthStart && date <= monthEnd) {
+      if (date >= monthStart && date <= monthEnd && !isFutureDay(row.date)) {
         marked.add(dayKey(row.date));
         items.push({ id: row.id, date: row.date, kind: 'attendance', row });
       }
     });
     leaves.forEach((leave) => {
-      if (leave.status === 'REJECTED' || leave.status === 'CANCELLED') return;
-      const start = new Date(leave.startDate);
-      const end = new Date(leave.endDate);
-      if (end < monthStart || start > monthEnd) return;
-      items.push({ id: leave.id, date: leave.startDate, kind: 'leave', leave });
+      if (leave.status !== 'APPROVED') return;
+      const start = parseKey(dayKey(leave.startDate));
+      const end = parseKey(dayKey(leave.endDate));
+      for (let cursorDate = new Date(start); cursorDate <= end; cursorDate.setDate(cursorDate.getDate() + 1)) {
+        if (cursorDate < monthStart || cursorDate > monthEnd || isFutureDay(cursorDate)) continue;
+        const key = dayKey(cursorDate);
+        if (marked.has(key)) continue;
+        marked.add(key);
+        items.push({
+          id: `${leave.id}-${key}`,
+          date: new Date(Date.UTC(cursorDate.getFullYear(), cursorDate.getMonth(), cursorDate.getDate())).toISOString(),
+          kind: 'leave',
+          leave,
+        });
+      }
     });
     const holidayByDay = new Map(holidays.map((row) => [dayKey(row.date), row.name]));
     const daysInMonth = monthEnd.getDate();
     for (let day = 1; day <= daysInMonth; day += 1) {
       const date = new Date(cursor.year, cursor.month, day);
       const key = dayKey(date);
-      if (marked.has(key)) continue;
+      if (marked.has(key) || isFutureDay(date)) continue;
       const iso = new Date(Date.UTC(cursor.year, cursor.month, day)).toISOString();
       if (weekOffs.includes(date.getDay())) {
         items.push({ id: `weekoff-${key}`, date: iso, kind: 'weekoff' });
@@ -475,9 +494,13 @@ export function EmployeeAttendanceProfile({
         const label = `${item.leave.leaveType?.name || ''} ${item.leave.reason || ''} time off`;
         return !q || label.toLowerCase().includes(q) || dayKey(item.date).includes(q);
       }
-      if (statusFilter !== 'ALL' && item.row.status !== statusFilter) return false;
-      const copy = statusCopy(item.row.status, item.row.overtimeMinutes).label;
-      return !q || `${copy} ${item.row.notes || ''} ${item.row.status}`.toLowerCase().includes(q) || dayKey(item.date).includes(q);
+      const approvedLeave = leaveByDay.get(dayKey(item.row.date));
+      const effectiveStatus = approvedLeave ? 'LEAVE' : item.row.status;
+      if (statusFilter !== 'ALL' && effectiveStatus !== statusFilter) return false;
+      const copy = approvedLeave
+        ? approvedLeave.leaveType?.name || 'Leave'
+        : statusCopy(item.row.status, item.row.overtimeMinutes, item.row.notes).label;
+      return !q || `${copy} ${item.row.notes || ''} ${effectiveStatus}`.toLowerCase().includes(q) || dayKey(item.date).includes(q);
     });
     filtered.sort((a, b) => {
       if (sortKey === 'hours') {
@@ -488,7 +511,7 @@ export function EmployeeAttendanceProfile({
       return (new Date(a.date).getTime() - new Date(b.date).getTime()) * (sortDir === 'asc' ? 1 : -1);
     });
     return filtered;
-  }, [attendance, cursor, holidays, leaves, query, sortDir, sortKey, statusFilter, weekOffs]);
+  }, [attendance, cursor, holidays, leaveByDay, leaves, query, sortDir, sortKey, statusFilter, weekOffs]);
 
   const years = useMemo(() => {
     const found = new Set<number>([currentYear, statYear]);
@@ -543,7 +566,7 @@ export function EmployeeAttendanceProfile({
         const minutes = minutesWorked(item.row);
         return [
           dayKey(item.date),
-          statusCopy(item.row.status, item.row.overtimeMinutes).label,
+          statusCopy(item.row.status, item.row.overtimeMinutes, item.row.notes).label,
           clock(item.row.checkIn),
           clock(item.row.checkOut),
           overtimeLabel(item.row.overtimeMinutes ?? Math.max(0, minutes - 8 * 60)),
@@ -757,7 +780,7 @@ export function EmployeeAttendanceProfile({
                 <option value="WFH">Work from home</option>
                 <option value="HALF_DAY">Half day</option>
                 <option value="ABSENT">Absent</option>
-                <option value="LEAVE">Time off</option>
+                <option value="LEAVE">Leave</option>
                 <option value="WEEKEND">Week off</option>
                 <option value="HOLIDAY">Holiday</option>
               </select>
@@ -809,54 +832,33 @@ export function EmployeeAttendanceProfile({
                     );
                   }
                   if (item.kind === 'leave') {
-                    const start = parseKey(dayKey(item.leave.startDate));
-                    const end = parseKey(dayKey(item.leave.endDate));
-                    const days = countedDays(start, end, weekOffs);
+                    const date = new Date(item.date);
                     const approver = [item.leave.approver?.firstName, item.leave.approver?.lastName].filter(Boolean).join(' ');
                     return (
-                      <tr key={item.id} className="hr-leave-row">
+                      <tr key={item.id}>
                         <td>
                           <div className="hr-date">
-                            <b>{start.toLocaleDateString(undefined, { weekday: 'short' })}</b>
-                            <span>{start.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            <b>{date.toLocaleDateString(undefined, { weekday: 'short' })}</b>
+                            <span>{date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                           </div>
                         </td>
-                        <td colSpan={8}>
-                          <div className="hr-leave">
-                            <span className="hr-leave-mark">M</span>
-                            <div>
-                              <strong>Time Off</strong>
-                              <small>{approver ? `Approved by ${approver}` : item.leave.status === 'PENDING' ? 'Waiting for approval' : 'Recorded leave'}</small>
-                            </div>
-                            <div>
-                              <small>Approved On</small>
-                              <b>{item.leave.updatedAt ? new Date(item.leave.updatedAt).toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}</b>
-                            </div>
-                            <div>
-                              <small>Duration</small>
-                              <b>{days} day{days === 1 ? '' : 's'}</b>
-                            </div>
-                            <div>
-                              <small>Type</small>
-                              <b>{item.leave.leaveType?.name || 'Leave'}</b>
-                            </div>
-                            <div>
-                              <small>Note</small>
-                              <b>{item.leave.reason || '—'}</b>
-                            </div>
-                            {item.leave.attachmentUrl && (
-                              <a href={item.leave.attachmentUrl} target="_blank" rel="noreferrer">
-                                {item.leave.leaveType?.name || 'Leave'} file
-                              </a>
-                            )}
-                          </div>
-                        </td>
+                        <td>—</td>
+                        <td><span className="hr-status leave">{item.leave.leaveType?.name || 'Leave'}</span></td>
+                        <td className="muted-cell">{approver ? `Approved by ${approver}` : 'Approved'}</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>{item.leave.reason || '—'}</td>
                       </tr>
                     );
                   }
                   const minutes = minutesWorked(item.row);
                   const overtime = item.row.overtimeMinutes ?? Math.max(0, minutes - 8 * 60);
-                  const copy = statusCopy(item.row.status, item.row.overtimeMinutes);
+                  const approvedLeave = leaveByDay.get(dayKey(item.row.date));
+                  const copy = approvedLeave
+                    ? { label: approvedLeave.leaveType?.name || 'Leave', tone: 'leave' }
+                    : statusCopy(item.row.status, item.row.overtimeMinutes, item.row.notes);
                   const date = new Date(item.row.date);
                   const map = item.row.latitude != null && item.row.longitude != null
                     ? `https://www.google.com/maps?q=${item.row.latitude},${item.row.longitude}`
@@ -923,7 +925,10 @@ export function EmployeeAttendanceProfile({
                   </li>
                 );
               }
-              const copy = statusCopy(item.row.status, item.row.overtimeMinutes);
+              const approvedLeave = leaveByDay.get(dayKey(item.row.date));
+              const copy = approvedLeave
+                ? { label: approvedLeave.leaveType?.name || 'Leave', tone: 'leave' }
+                : statusCopy(item.row.status, item.row.overtimeMinutes, item.row.notes);
               const minutes = minutesWorked(item.row);
               return (
                 <li key={item.id}>

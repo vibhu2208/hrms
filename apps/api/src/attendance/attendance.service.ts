@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AttendanceApprovalStatus, AttendanceStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { LeaveService } from '../leave/leave.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   LocationFix,
@@ -29,6 +30,7 @@ export class AttendanceService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private leave: LeaveService,
   ) {}
 
   private clearReadCache() {
@@ -320,6 +322,8 @@ export class AttendanceService {
 
   async history(employeeId: string | undefined, from?: string, to?: string) {
     const id = this.requireEmployee(employeeId);
+    await this.leave.syncAttendanceForEmployee(id);
+    this.clearReadCache();
     return this.recordsFor(id, from, to);
   }
 
@@ -329,6 +333,8 @@ export class AttendanceService {
       select: { id: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
+    await this.leave.syncAttendanceForEmployee(employeeId);
+    this.clearReadCache();
     return this.recordsFor(employeeId, from, to);
   }
 

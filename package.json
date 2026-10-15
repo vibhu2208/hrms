@@ -15,7 +15,8 @@
     "db:generate": "npm run prisma:generate -w @go-staff/api",
     "db:migrate": "npm run prisma:migrate -w @go-staff/api",
     "db:seed": "npm run prisma:seed -w @go-staff/api",
-    "db:push": "npm run prisma:push -w @go-staff/api"
+    "db:push": "npm run prisma:push -w @go-staff/api",
+    "db:provision": "npm run prisma:provision -w @go-staff/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

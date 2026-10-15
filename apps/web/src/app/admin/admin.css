@@ -1456,6 +1456,8 @@
   box-shadow: inset 0 0 0 1.5px var(--ink);
 }
 .hr-dot.off { background: var(--muted); }
+.hr-dot.leave { background: var(--brand); }
+.hr-status.leave { border-color: var(--brand); color: var(--brand-deep); }
 .hr-dot.holiday { background: var(--ink); }
 .hr-dot.holiday svg { fill: #fff; stroke: none; }
 .hr-dot.blank { background: #e7e3da; }

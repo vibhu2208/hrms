@@ -8,6 +8,8 @@ import { OrgService } from '../org/org.service';
 import { EmailService } from '../email/email.service';
 import { StorageService } from '../storage/storage.service';
 import { LeaveService } from '../leave/leave.service';
+import { getTenantContext } from '../tenant/tenant.context';
+import { publicOrigin } from '../tenant/host';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -498,10 +500,10 @@ export class UsersService {
     employeeCode: string;
     password: string;
   }): Promise<{ delivered: boolean; mode: string; error?: string }> {
-    const origin = (this.config.get<string>('WEB_ORIGIN') || this.config.get<string>('CORS_ORIGIN') || 'http://localhost:3000')
-      .split(',')[0]
-      .trim()
-      .replace(/\/$/, '');
+    const origin = publicOrigin(
+      getTenantContext()?.tenant.hosts || [],
+      this.config.get<string>('WEB_ORIGIN') || this.config.get<string>('CORS_ORIGIN'),
+    );
     const text =
       `Hi ${input.firstName},\n\n` +
       `Your Go Staff account is ready.\n\n` +

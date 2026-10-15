@@ -2,12 +2,16 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { PlatformPrismaService } from '../platform/platform-prisma.service';
+import { getTenantContext } from '../tenant/tenant.context';
+import { normalizeMailAddress } from '../email/mail-address';
 
 @Injectable()
 export class OrgService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private platform: PlatformPrismaService,
   ) {}
 
   departments() {
@@ -264,10 +268,21 @@ export class OrgService {
   }
 
   async setSetting(key: string, value: string, actorId?: string) {
+    let stored = value;
+    if (key === 'mail_from') {
+      stored = normalizeMailAddress(value);
+      const slug = getTenantContext()?.tenant.slug;
+      if (slug) {
+        await this.platform.tenant.update({
+          where: { slug },
+          data: { mailFrom: stored },
+        });
+      }
+    }
     const row = await this.prisma.appSetting.upsert({
       where: { key },
-      create: { key, value },
-      update: { value },
+      create: { key, value: stored },
+      update: { value: stored },
     });
     await this.audit.log({
       actorId,

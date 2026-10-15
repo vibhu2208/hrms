@@ -21,9 +21,10 @@ async function bootstrap() {
         return;
       }
       const origin = requestOrigin.replace(/\/$/, '');
-      callback(null, allowedOrigins.has(origin) ? origin : false);
+      callback(null, isAllowedOrigin(origin, allowedOrigins) ? origin : false);
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Host', 'X-Tenant-Slug', 'X-API-Key'],
   });
   app.useGlobalPipes(
     new ValidationPipe({
@@ -37,3 +38,18 @@ async function bootstrap() {
   console.log(`Go Staff API running on http://localhost:${port}/api/v1`);
 }
 bootstrap();
+
+function isAllowedOrigin(origin: string, allowed: Set<string>) {
+  if (allowed.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    const local = url.hostname === 'localhost' || url.hostname.endsWith('.localhost');
+    if (local && (url.protocol === 'http:' || url.protocol === 'https:')) return true;
+    if (url.protocol === 'https:' && (url.hostname === 'gostaff.in' || url.hostname.endsWith('.gostaff.in'))) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}

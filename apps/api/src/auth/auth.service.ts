@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { MICROSOFT_DELEGATED_SCOPES } from '../microsoft/microsoft.constants';
 import { LoginDto } from './dto/login.dto';
+import { getTenantContext, TenantRecord } from '../tenant/tenant.context';
+import { hostnameOf, originFromHost, slugFromHost } from '../tenant/host';
 
 function emailFromIdToken(idToken: string) {
   try {
@@ -68,16 +70,27 @@ export class AuthService {
     return Boolean(this.microsoftConfig());
   }
 
-  microsoftAuthorizeUrl(options?: { prompt?: string; returnTo?: string }) {
+  microsoftAuthorizeUrl(options?: { prompt?: string; returnTo?: string; host?: string }) {
     const cfg = this.microsoftConfig();
     if (!cfg) {
       throw new ServiceUnavailableException(
         'Microsoft sign-in is not set up yet. Add the Entra app tenant ID, client ID, and client secret.',
       );
     }
+    const tenant = getTenantContext()?.tenant;
+    if (!tenant) {
+      throw new UnauthorizedException('Open this company from its own web address.');
+    }
     const returnTo = safeTaskReturn(options?.returnTo);
+    const requestedOrigin = originFromHost(options?.host);
+    const returnOrigin = requestedOrigin && hostBelongsToTenant(options?.host || '', tenant) ? requestedOrigin : null;
     const state = this.jwt.sign(
-      { purpose: 'ms-sso', ...(returnTo ? { returnTo } : {}) },
+      {
+        purpose: 'ms-sso',
+        tenantSlug: tenant.slug,
+        ...(returnOrigin ? { returnOrigin } : {}),
+        ...(returnTo ? { returnTo } : {}),
+      },
       { expiresIn: '10m' },
     );
     const params = new URLSearchParams({
@@ -104,7 +117,7 @@ export class AuthService {
     if (!cfg) {
       throw new ServiceUnavailableException('Microsoft sign-in is not set up yet.');
     }
-    let statePayload: { purpose?: string; returnTo?: string };
+    let statePayload: { purpose?: string; returnTo?: string; tenantSlug?: string; returnOrigin?: string };
     try {
       statePayload = this.jwt.verify(state);
     } catch {
@@ -112,6 +125,10 @@ export class AuthService {
     }
     if (statePayload.purpose !== 'ms-sso') {
       throw new UnauthorizedException('Microsoft sign-in could not be verified. Try again.');
+    }
+    const tenant = getTenantContext()?.tenant;
+    if (!tenant || statePayload.tenantSlug !== tenant.slug) {
+      throw new UnauthorizedException('This sign-in was started from a different company address.');
     }
 
     const tokenRes = await fetch(
@@ -205,7 +222,11 @@ export class AuthService {
       metadata: { method: 'microsoft' },
     });
 
-    return { token: this.signSession(user), returnTo: safeTaskReturn(statePayload.returnTo) };
+    return {
+      token: this.signSession(user),
+      returnTo: safeTaskReturn(statePayload.returnTo),
+      returnOrigin: originFromHost(statePayload.returnOrigin),
+    };
   }
 
   async me(userId: string) {
@@ -222,12 +243,29 @@ export class AuthService {
     return this.sanitize(user);
   }
 
+  originFor(returnOrigin?: string | null) {
+    return returnOrigin || this.webOrigin();
+  }
+
+  returnOriginFromState(state?: string) {
+    if (!state) return null;
+    try {
+      const payload = this.jwt.verify(state) as { returnOrigin?: string };
+      return originFromHost(payload.returnOrigin);
+    } catch {
+      return null;
+    }
+  }
+
   private signSession(user: { id: string; email: string; role: { code: string }; employee?: { id: string } | null }) {
+    const tenant = getTenantContext()?.tenant;
+    if (!tenant) throw new UnauthorizedException('Open this company from its own web address.');
     return this.jwt.sign({
       sub: user.id,
       email: user.email,
       role: user.role.code,
       employeeId: user.employee?.id,
+      tenantSlug: tenant.slug,
     });
   }
 
@@ -250,6 +288,13 @@ export class AuthService {
   async hashPassword(password: string) {
     return bcrypt.hash(password, 10);
   }
+}
+
+function hostBelongsToTenant(host: string, tenant: TenantRecord) {
+  const name = hostnameOf(host);
+  if (!name) return false;
+  if (tenant.hosts.some((item) => hostnameOf(item) === name)) return true;
+  return slugFromHost(name) === tenant.slug;
 }
 
 function safeTaskReturn(value?: string | null) {

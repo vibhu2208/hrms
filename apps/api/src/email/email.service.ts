@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer from 'nodemailer';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type SendMailInput = {
   to: string;
@@ -16,16 +17,16 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private graphToken: { value: string; expiresAt: number } | null = null;
 
-  constructor(private config: ConfigService) {}
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {}
 
   async send(input: SendMailInput): Promise<SendResult> {
     const tenantId = this.config.get<string>('MS_TENANT_ID')?.trim();
     const clientId = this.config.get<string>('MS_CLIENT_ID')?.trim();
     const clientSecret = this.config.get<string>('MS_CLIENT_SECRET')?.trim();
-    const mailUser =
-      this.config.get<string>('MS_MAIL_FROM')?.trim() ||
-      this.config.get<string>('SMTP_USER')?.trim() ||
-      'connect@aithworld.com';
+    const mailUser = await this.sendingAddress();
 
     // Prefer Microsoft Graph (works without app passwords / SMTP basic auth)
     if (tenantId && clientId && clientSecret) {
@@ -33,6 +34,21 @@ export class EmailService {
     }
 
     return this.sendViaSmtp(input, mailUser);
+  }
+
+  private async sendingAddress() {
+    try {
+      const row = await this.prisma.appSetting.findUnique({ where: { key: 'mail_from' } });
+      const value = row?.value?.trim().toLowerCase();
+      if (value && value.includes('@')) return value;
+    } catch {
+      /* outside a company request, use the shared mailbox */
+    }
+    return (
+      this.config.get<string>('MS_MAIL_FROM')?.trim() ||
+      this.config.get<string>('SMTP_USER')?.trim() ||
+      'connect@aithworld.com'
+    );
   }
 
   private async sendViaGraph(
@@ -123,9 +139,7 @@ export class EmailService {
 
   private async sendViaSmtp(input: SendMailInput, mailUser: string): Promise<SendResult> {
     const host = this.config.get<string>('SMTP_HOST')?.trim();
-    const from =
-      this.config.get<string>('SMTP_FROM') ||
-      `Go Staff Careers <${mailUser}>`;
+    const from = `Go Staff Careers <${mailUser}>`;
 
     if (!host) {
       this.logger.log(

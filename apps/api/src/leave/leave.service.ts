@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LeaveFrequency, LeaveStatus, Prisma } from '@prisma/client';
+import { AttendanceStatus, LeaveFrequency, LeaveStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -518,6 +518,7 @@ export class LeaveService {
           { employeeIds: [existing.employeeId], leaveTypeIds: [existing.leaveTypeId], year },
           tx,
         );
+        await this.writeLeaveAttendance(tx, saved, weekOffs);
       }
       return saved;
     });
@@ -547,12 +548,14 @@ export class LeaveService {
       throw new BadRequestException('Only pending or approved requests can be cancelled');
     }
     const year = request.startDate.getUTCFullYear();
+    const weekOffs = await this.weekOffDays();
     return this.prisma.$transaction(async (tx) => {
       const saved = await tx.leaveRequest.update({
         where: { id },
         data: { status: LeaveStatus.CANCELLED },
       });
       if (request.status === LeaveStatus.APPROVED) {
+        await this.clearLeaveAttendance(tx, request, weekOffs);
         await this.syncBalances(
           { employeeIds: [employeeId], leaveTypeIds: [request.leaveTypeId], year },
           tx,
@@ -560,6 +563,74 @@ export class LeaveService {
       }
       return saved;
     });
+  }
+
+  async syncAttendanceForEmployee(employeeId: string) {
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: { employeeId, status: LeaveStatus.APPROVED },
+      include: { leaveType: true },
+    });
+    if (!requests.length) return;
+    const weekOffs = await this.weekOffDays();
+    for (const request of requests) {
+      await this.writeLeaveAttendance(this.prisma, request, weekOffs);
+    }
+  }
+
+  private leaveDays(start: Date, end: Date, weekOffs: number[]) {
+    const off = new Set(weekOffs);
+    const from = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+    const to = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+    const days: Date[] = [];
+    for (let cursor = from; cursor <= to; cursor += 86_400_000) {
+      const date = new Date(cursor);
+      if (!off.has(date.getUTCDay())) days.push(date);
+    }
+    return days;
+  }
+
+  private async writeLeaveAttendance(
+    db: LeaveStore,
+    request: { employeeId: string; startDate: Date; endDate: Date; leaveType?: { name?: string | null } | null },
+    weekOffs: number[],
+  ) {
+    const label = request.leaveType?.name?.trim() || 'Leave';
+    for (const date of this.leaveDays(request.startDate, request.endDate, weekOffs)) {
+      const existing = await db.attendance.findUnique({
+        where: { employeeId_date: { employeeId: request.employeeId, date } },
+      });
+      if (existing?.checkIn) continue;
+      if (existing) {
+        await db.attendance.update({
+          where: { id: existing.id },
+          data: { status: AttendanceStatus.LEAVE, notes: label },
+        });
+        continue;
+      }
+      await db.attendance.create({
+        data: {
+          employeeId: request.employeeId,
+          date,
+          status: AttendanceStatus.LEAVE,
+          notes: label,
+        },
+      });
+    }
+  }
+
+  private async clearLeaveAttendance(
+    db: LeaveStore,
+    request: { employeeId: string; startDate: Date; endDate: Date },
+    weekOffs: number[],
+  ) {
+    for (const date of this.leaveDays(request.startDate, request.endDate, weekOffs)) {
+      const existing = await db.attendance.findUnique({
+        where: { employeeId_date: { employeeId: request.employeeId, date } },
+      });
+      if (existing && existing.status === AttendanceStatus.LEAVE && !existing.checkIn) {
+        await db.attendance.delete({ where: { id: existing.id } });
+      }
+    }
   }
 
   async syncBalances(

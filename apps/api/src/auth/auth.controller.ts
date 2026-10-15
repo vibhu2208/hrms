@@ -19,9 +19,10 @@ export class AuthController {
     @Res() res: Response,
     @Query('prompt') prompt?: string,
     @Query('returnTo') returnTo?: string,
+    @Query('host') host?: string,
   ) {
     try {
-      return res.redirect(this.auth.microsoftAuthorizeUrl({ prompt, returnTo }));
+      return res.redirect(this.auth.microsoftAuthorizeUrl({ prompt, returnTo, host }));
     } catch (err: any) {
       return res.redirect(this.failureRedirect(err?.message));
     }
@@ -42,19 +43,19 @@ export class AuthController {
     }
     try {
       const session = await this.auth.loginWithMicrosoft(code, state);
-      const origin = this.auth.webOrigin();
+      const origin = this.auth.originFor(session.returnOrigin);
       const hash = new URLSearchParams({ token: session.token });
       if (session.returnTo) hash.set('returnTo', session.returnTo);
       return res.redirect(`${origin}/login/microsoft#${hash.toString()}`);
     } catch (err: any) {
       const message = Array.isArray(err?.message) ? err.message.join(', ') : err?.message;
-      return res.redirect(this.failureRedirect(message));
+      return res.redirect(this.failureRedirect(message, state));
     }
   }
 
-  private failureRedirect(message?: string) {
+  private failureRedirect(message?: string, state?: string) {
     const text = (message || 'Microsoft sign-in failed.').slice(0, 300);
-    return `${this.auth.webOrigin()}/login?error=${encodeURIComponent(text)}`;
+    return `${this.auth.originFor(this.auth.returnOriginFromState(state))}/login?error=${encodeURIComponent(text)}`;
   }
 
   @Get('me')

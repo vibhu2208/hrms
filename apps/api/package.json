@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "prisma generate && nest build",
+    "build": "prisma generate && prisma generate --schema prisma/platform/schema.prisma && nest build",
     "start": "node dist/main.js",
-    "prisma:generate": "prisma generate",
+    "prisma:generate": "prisma generate && prisma generate --schema prisma/platform/schema.prisma",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
-    "prisma:seed": "ts-node --transpile-only prisma/seed.ts"
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "prisma:provision": "ts-node --transpile-only prisma/provision.ts"
   },
   "dependencies": {
     "@go-staff/shared": "*",
