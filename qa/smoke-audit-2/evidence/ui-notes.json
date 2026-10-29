@@ -1,0 +1,236 @@
+{
+  "notes": {
+    "loginOverflow1440": {
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "overflowX": 0
+    },
+    "employeeHomeOverflow": {
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "overflowX": 0
+    },
+    "localStorageKycKeys": {
+      "hasToken": true,
+      "hasAadhaarKey": true,
+      "hasPanKey": true,
+      "hasBankKey": true
+    },
+    "xssDialog": false,
+    "bulletinVisible": 2,
+    "scriptShownAsText": 2,
+    "employeeAdminUrl": "http://aithworld.localhost:3000/login",
+    "afterLogoutStorage": {
+      "tokenCleared": true,
+      "userCleared": true
+    },
+    "employeeAfterLogoutUrl": "http://aithworld.localhost:3000/login",
+    "adminOverflow": {
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "overflowX": 0
+    },
+    "ownerRevenueUrl": "http://aithworld.localhost:3000/admin/revenue",
+    "ownerIntegrationsUrl": "http://aithworld.localhost:3000/admin/integrations",
+    "deptRevenueUrl": "http://aithworld.localhost:3000/admin",
+    "teamLeaderHomeUrl": "http://aithworld.localhost:3000/employee",
+    "teamLeaderAdminUrl": "http://aithworld.localhost:3000/login",
+    "responsive": [
+      {
+        "viewport": "1440x900",
+        "login": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "overflowX": 0
+        },
+        "home": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "overflowX": 0
+        },
+        "leave": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "overflowX": 0
+        },
+        "support": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "overflowX": 0
+        }
+      },
+      {
+        "viewport": "768x1024",
+        "login": {
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "overflowX": 0
+        },
+        "home": {
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "overflowX": 0
+        },
+        "leave": {
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "overflowX": 0
+        },
+        "support": {
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "overflowX": 0
+        }
+      },
+      {
+        "viewport": "390x844",
+        "login": {
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "overflowX": 0
+        },
+        "home": {
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "overflowX": 0
+        },
+        "leave": {
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "overflowX": 0
+        },
+        "support": {
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "overflowX": 0
+        }
+      },
+      {
+        "viewport": "320x568",
+        "login": {
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "overflowX": 0
+        },
+        "home": {
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "overflowX": 0
+        },
+        "leave": {
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "overflowX": 0
+        },
+        "support": {
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "overflowX": 0
+        }
+      }
+    ],
+    "adminMobileOverflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflowX": 0
+    },
+    "mobileMenuButton": 1
+  },
+  "consoleLog": [
+    {
+      "page": "http://aithworld.localhost:3000/login",
+      "type": "warning",
+      "text": "./src/app/admin/admin.css.webpack[javascript/auto]!=!../../node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!../../node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/app/admin"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin/revenue",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin/revenue",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/admin",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/login",
+      "type": "error",
+      "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` wh"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/login",
+      "type": "error",
+      "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` wh"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/login",
+      "type": "error",
+      "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` wh"
+    },
+    {
+      "page": "http://aithworld.localhost:3000/login",
+      "type": "error",
+      "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` wh"
+    }
+  ]
+}

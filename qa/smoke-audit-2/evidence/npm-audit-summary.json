@@ -1,0 +1,60 @@
+{
+  "vulnerabilities": {
+    "info": 0,
+    "low": 3,
+    "moderate": 4,
+    "high": 9,
+    "critical": 3,
+    "total": 19
+  },
+  "highCritical": [
+    {
+      "name": "@nestjs/platform-express",
+      "severity": "high"
+    },
+    {
+      "name": "@prisma/config",
+      "severity": "high"
+    },
+    {
+      "name": "body-parser",
+      "severity": "high"
+    },
+    {
+      "name": "concurrently",
+      "severity": "critical"
+    },
+    {
+      "name": "deepmerge-ts",
+      "severity": "high"
+    },
+    {
+      "name": "multer",
+      "severity": "high"
+    },
+    {
+      "name": "next",
+      "severity": "critical"
+    },
+    {
+      "name": "postcss",
+      "severity": "high"
+    },
+    {
+      "name": "prisma",
+      "severity": "high"
+    },
+    {
+      "name": "sharp",
+      "severity": "high"
+    },
+    {
+      "name": "shell-quote",
+      "severity": "critical"
+    },
+    {
+      "name": "source-map-js",
+      "severity": "high"
+    }
+  ]
+}

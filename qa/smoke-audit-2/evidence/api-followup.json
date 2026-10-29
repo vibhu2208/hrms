@@ -1,0 +1,176 @@
+{
+  "deptAttendance": {
+    "status": 200,
+    "rows": [
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Dev Smoke",
+        "department": "Engineering",
+        "status": "LEAVE"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "status": "LATE"
+      }
+    ]
+  },
+  "deptSalesHistory": {
+    "status": 200,
+    "rows": 8,
+    "sampleStatus": "LEAVE"
+  },
+  "deptPendingLeave": {
+    "status": 200,
+    "rows": [
+      {
+        "name": "Rohan Patel",
+        "department": "Engineering",
+        "type": "SL",
+        "status": "PENDING"
+      },
+      {
+        "name": "Rohan Patel",
+        "department": "Engineering",
+        "type": "CL",
+        "status": "PENDING"
+      },
+      {
+        "name": "Rohan Patel",
+        "department": "Engineering",
+        "type": "CL",
+        "status": "PENDING"
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "type": "CL",
+        "status": "PENDING"
+      }
+    ]
+  },
+  "deptPerformance": {
+    "status": 200,
+    "people": [
+      {
+        "name": "Rohan Patel",
+        "department": "Engineering",
+        "overall": 79
+      },
+      {
+        "name": "Eve Smoke",
+        "department": "Sales",
+        "overall": 10
+      }
+    ]
+  },
+  "colleagues": {
+    "teamLeader": 200,
+    "employee": 403,
+    "teamLeaderCount": 2,
+    "teamLeaderHasScore": true
+  },
+  "employee2Tasks": {
+    "status": 200,
+    "titles": [
+      "Cross department task"
+    ]
+  },
+  "recruitmentMissingDates": {
+    "status": 500,
+    "message": "Internal server error"
+  },
+  "sourceCreate": {
+    "status": 201,
+    "keyIssued": true,
+    "message": null
+  },
+  "ingest": {
+    "first": 201,
+    "second": 201,
+    "firstBody": "COMPLETED",
+    "count": 1,
+    "amount": 44,
+    "invoiceStatus": "PAID",
+    "hook": 201,
+    "hook2": 201,
+    "leads": 1
+  },
+  "hrReports": {
+    "revenue": 200,
+    "accounts": 200,
+    "accountsMentionsInvoice": true,
+    "revenueKeys": [
+      "period",
+      "revenue",
+      "grossProfit",
+      "netProfit",
+      "expenses",
+      "margin",
+      "byVertical",
+      "trend",
+      "meta"
+    ]
+  },
+  "hrSettingsKeys": {
+    "status": 200,
+    "keys": [
+      "colleague_performance_visible"
+    ]
+  },
+  "badSourceType": {
+    "status": 500,
+    "message": "Internal server error"
+  },
+  "deptTasksAfterAssign": {
+    "status": 200,
+    "rows": [
+      [
+        "Cross department task",
+        "Sales"
+      ],
+      [
+        "Smoke checklist",
+        "Engineering"
+      ],
+      [
+        "Complete onboarding checklist",
+        "Engineering"
+      ]
+    ]
+  }
+}
