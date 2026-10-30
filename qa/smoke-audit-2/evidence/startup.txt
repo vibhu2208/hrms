@@ -1,0 +1,17 @@
+=== API ready ===
+237:[Nest] 6489  - 10/29/2026, 11:30:24 AM     LOG [NestApplication] Nest application successfully started +56ms
+238:Go Staff API running on http://localhost:4000/api/v1
+=== WEB ready ===
+10:   - Local:        http://localhost:3000
+20: ✓ Ready in 1403ms
+=== BUILD tail status ===
+ƒ Middleware                             34.4 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+=== TSC ===
+0 /tmp/gostaff-logs/tsc-api.txt
+0 /tmp/gostaff-logs/tsc-shared.txt
+0 /tmp/gostaff-logs/tsc-web.txt
+0 total

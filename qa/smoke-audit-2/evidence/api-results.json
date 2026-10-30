@@ -1,0 +1,517 @@
+{
+  "executedAt": "2026-10-29T11:33:18.838Z",
+  "api": "http://127.0.0.1:4000/api/v1",
+  "tenant": "aithworld.localhost",
+  "counts": {
+    "PASS": 39,
+    "FAIL": 34,
+    "INFO": 10,
+    "BLOCKED": 1
+  },
+  "cases": [
+    {
+      "id": "BOOT-01",
+      "title": "Tenant resolves on local host",
+      "status": "PASS",
+      "detail": "{\"slug\":\"aithworld\",\"name\":\"Aith World\"}"
+    },
+    {
+      "id": "AUTH-LOGIN-owner",
+      "title": "Login owner",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"OWNER\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-hr",
+      "title": "Login hr",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"HR\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-employee",
+      "title": "Login employee",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"EMPLOYEE\",\"kyc\":{\"aadhaar\":true,\"pan\":true,\"bank\":true}}"
+    },
+    {
+      "id": "AUTH-LOGIN-management",
+      "title": "Login management",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"MANAGEMENT\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-hrClone",
+      "title": "Login hrClone",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"HR\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-dept",
+      "title": "Login dept",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"DEPT_MANAGER\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-lead",
+      "title": "Login lead",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"TEAM_LEADER\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-employee2",
+      "title": "Login employee2",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"EMPLOYEE\",\"kyc\":{\"aadhaar\":true,\"pan\":true,\"bank\":true}}"
+    },
+    {
+      "id": "AUTH-LOGIN-demote",
+      "title": "Login demote",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"HR\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-LOGIN-deactivate",
+      "title": "Login deactivate",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"role\":\"EMPLOYEE\",\"kyc\":{\"aadhaar\":false,\"pan\":false,\"bank\":false}}"
+    },
+    {
+      "id": "AUTH-02",
+      "title": "Wrong password is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":401,\"message\":\"Invalid credentials\"}"
+    },
+    {
+      "id": "AUTH-03",
+      "title": "Unknown user is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":401,\"message\":\"Invalid credentials\"}"
+    },
+    {
+      "id": "AUTH-04",
+      "title": "Malformed login is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":[\"email must be an email\",\"password must be longer than or equal to 4 characters\"]}"
+    },
+    {
+      "id": "SEC-SQLI-01",
+      "title": "SQL injection in login does not 500",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":[\"email must be an email\"]}"
+    },
+    {
+      "id": "AUTH-05",
+      "title": "Invalid JWT is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":401}"
+    },
+    {
+      "id": "AUTH-06",
+      "title": "Expired JWT is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":401}"
+    },
+    {
+      "id": "AUTH-07",
+      "title": "alg=none JWT is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":401}"
+    },
+    {
+      "id": "AUTH-08",
+      "title": "Logout is client-only; token still works",
+      "status": "FAIL",
+      "detail": "{\"note\":\"No POST /auth/logout exists. After the UI clears localStorage this same bearer token was sent again.\",\"status\":200,\"role\":\"EMPLOYEE\"}"
+    },
+    {
+      "id": "AUTH-09",
+      "title": "Token from one company is rejected by another",
+      "status": "PASS",
+      "detail": "{\"status\":401,\"message\":\"This session belongs to another company.\"}"
+    },
+    {
+      "id": "AUTH-10",
+      "title": "Missing company host is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":404,\"message\":\"Unknown company for this address.\"}"
+    },
+    {
+      "id": "SEC-RATE-01",
+      "title": "Login burst is rate limited",
+      "status": "FAIL",
+      "detail": "{\"attempts\":25,\"elapsedMs\":1598,\"statuses\":{\"401\":25}}"
+    },
+    {
+      "id": "SEC-CORS-01",
+      "title": "Unrelated origin is not reflected",
+      "status": "PASS",
+      "detail": "{}"
+    },
+    {
+      "id": "SEC-CORS-02",
+      "title": "Any localhost port is allowed with credentials",
+      "status": "FAIL",
+      "detail": "{\"access-control-allow-origin\":\"http://localhost:5999\",\"access-control-allow-credentials\":\"true\"}"
+    },
+    {
+      "id": "SEC-CORS-03",
+      "title": "Any gostaff.in subdomain is allowed",
+      "status": "FAIL",
+      "detail": "{\"access-control-allow-origin\":\"https://attacker.gostaff.in\",\"access-control-allow-credentials\":\"true\"}"
+    },
+    {
+      "id": "AUTH-11",
+      "title": "Password change and reset routes",
+      "status": "INFO",
+      "detail": "{\"change\":404,\"forgot\":404}"
+    },
+    {
+      "id": "AUTH-12",
+      "title": "Microsoft sign-in without Entra config",
+      "status": "BLOCKED",
+      "detail": "{\"status\":200,\"locationHint\":\"<!DOCTYPE html><html lang=\\\"en\\\"><head><meta charSet=\\\"utf-8\\\"/><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\"/><link rel=\\\"stylesheet\\\" href=\\\"/_next/static/css/app/\"}"
+    },
+    {
+      "id": "RE-001",
+      "title": "Employee can read another employee KYC",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"kyc\":{\"aadhaar\":true,\"pan\":true,\"bank\":true}}"
+    },
+    {
+      "id": "RE-002",
+      "title": "Employee and team leader can list the roster",
+      "status": "FAIL",
+      "detail": "{\"employee\":200,\"teamLeader\":200,\"employeeCount\":10,\"sampleHasEmail\":true,\"sampleHasDob\":true}"
+    },
+    {
+      "id": "RE-003",
+      "title": "Login payload includes KYC fields",
+      "status": "FAIL",
+      "detail": "{\"aadhaar\":true,\"pan\":true,\"bank\":true}"
+    },
+    {
+      "id": "RE-004",
+      "title": "Casual and sick leave on the same day both stay pending",
+      "status": "FAIL",
+      "detail": "{\"casual\":201,\"sick\":201,\"casualState\":\"PENDING\",\"sickState\":\"PENDING\"}"
+    },
+    {
+      "id": "LEAVE-OVERLAP-SAME",
+      "title": "Second casual request on the same day",
+      "status": "FAIL",
+      "detail": "{\"status\":201,\"state\":\"PENDING\"}"
+    },
+    {
+      "id": "RE-005",
+      "title": "Another employee can complete a task they do not own",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"newStatus\":\"COMPLETED_ON_TIME\"}"
+    },
+    {
+      "id": "TASK-01",
+      "title": "Another employee can tick a checklist item they do not own",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"completed\":true}"
+    },
+    {
+      "id": "RE-006",
+      "title": "Employee can read another employee performance history",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"rows\":1}"
+    },
+    {
+      "id": "RE-007",
+      "title": "Invalid ticket category",
+      "status": "FAIL",
+      "detail": "{\"status\":500,\"message\":\"Internal server error\",\"hasStack\":false}"
+    },
+    {
+      "id": "RE-008",
+      "title": "Recruitment create without dates",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"Select a department from HR configuration\",\"hasStack\":false}"
+    },
+    {
+      "id": "AUTHZ-MATRIX",
+      "title": "Role by endpoint status matrix saved",
+      "status": "INFO",
+      "detail": "{\"file\":\"role-matrix.json\"}"
+    },
+    {
+      "id": "AUTHZ-DIR",
+      "title": "Employee directory returns phone and email",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"count\":10,\"hasEmail\":true,\"hasPhone\":true}"
+    },
+    {
+      "id": "AUTHZ-BDAY",
+      "title": "Employee birthday list returns dates of birth",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"count\":10}"
+    },
+    {
+      "id": "AUTHZ-DEPT-ATT",
+      "title": "Department manager attendance list is company-wide",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"rows\":0,\"seesOtherDepartment\":false,\"note\":\"Engineering manager called GET /attendance with no department filter.\"}"
+    },
+    {
+      "id": "AUTHZ-DEPT-ATT-ID",
+      "title": "Department manager can open a Sales employee attendance history",
+      "status": "FAIL",
+      "detail": "{\"status\":200}"
+    },
+    {
+      "id": "AUTHZ-DEPT-LEAVE",
+      "title": "Department manager sees pending leave outside Engineering",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"departments\":[\"Engineering\"],\"count\":3}"
+    },
+    {
+      "id": "AUTHZ-DEPT-TASK",
+      "title": "Department manager sees tasks outside their department",
+      "status": "INFO",
+      "detail": "{\"status\":200,\"departments\":[\"Engineering\"],\"count\":2}"
+    },
+    {
+      "id": "AUTHZ-DEPT-PERF",
+      "title": "Department manager performance list",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"count\":1}"
+    },
+    {
+      "id": "AUTHZ-HR-REV",
+      "title": "HR can pull the revenue report",
+      "status": "FAIL",
+      "detail": "{\"report\":200,\"dashboard\":403,\"reportKeys\":[\"type\",\"generatedAt\",\"data\"]}"
+    },
+    {
+      "id": "AUTHZ-EMP-REV",
+      "title": "Employee and team leader are blocked from revenue",
+      "status": "PASS",
+      "detail": "{\"employee\":403,\"teamLeader\":403}"
+    },
+    {
+      "id": "AUTHZ-ESC-HR",
+      "title": "HR user can grant themselves Owner",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"roleAfter\":\"OWNER\"}"
+    },
+    {
+      "id": "AUTHZ-ESC-EMP",
+      "title": "Employee cannot change their own role",
+      "status": "PASS",
+      "detail": "{\"status\":403,\"message\":\"Insufficient role\"}"
+    },
+    {
+      "id": "AUTHZ-ESC-MGMT",
+      "title": "Management can grant themselves Owner",
+      "status": "FAIL",
+      "detail": "{\"status\":200,\"roleAfter\":\"OWNER\"}"
+    },
+    {
+      "id": "AUTH-STALE-ROLE",
+      "title": "Old token keeps HR access after the role is changed to Employee",
+      "status": "FAIL",
+      "detail": "{\"before\":200,\"after\":200,\"meRole\":\"EMPLOYEE\"}"
+    },
+    {
+      "id": "AUTH-DEACT",
+      "title": "Deactivated user token still works",
+      "status": "FAIL",
+      "detail": "{\"before\":200,\"after\":200,\"freshLogin\":401}"
+    },
+    {
+      "id": "ATT-CONFIG",
+      "title": "Owner can turn off office checks for this local run",
+      "status": "PASS",
+      "detail": "{\"status\":200}"
+    },
+    {
+      "id": "ATT-01",
+      "title": "Check-out without check-in is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"Check in first\"}"
+    },
+    {
+      "id": "ATT-02",
+      "title": "Check-in succeeds when office checks are off",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"state\":\"LATE\"}"
+    },
+    {
+      "id": "ATT-03",
+      "title": "Second check-in the same day is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"Already checked in today.\"}"
+    },
+    {
+      "id": "ATT-04",
+      "title": "Working minutes match the check-in to check-out gap",
+      "status": "PASS",
+      "detail": "{\"status\":201,\"workingMinutes\":125,\"overtimeMinutes\":30,\"expectedOvertimeAbout\":30,\"overtimeOk\":true,\"storedDate\":\"2026-10-29T00:00:00.000Z\",\"checkIn\":\"2026-10-29T09:28:05.960Z\",\"checkOut\":\"2026-10-29T11:33:05.972Z\",\"serverTimeZone\":\"UTC\"}"
+    },
+    {
+      "id": "ATT-05",
+      "title": "Overtime uses the server local clock against shift end",
+      "status": "PASS",
+      "detail": "{\"overtimeMinutes\":30,\"expectedOvertimeAbout\":30,\"shiftEnd\":\"11:03\"}"
+    },
+    {
+      "id": "ATT-06",
+      "title": "Check-in after check-out on the same day",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"Already checked in today.\"}"
+    },
+    {
+      "id": "ATT-TZ",
+      "title": "Attendance date versus server clock",
+      "status": "INFO",
+      "detail": "{\"serverTimeZone\":\"UTC\",\"now\":\"2026-10-29T11:33:06.000Z\",\"storedDate\":\"2026-10-29T00:00:00.000Z\",\"note\":\"todayDate uses the server local calendar date stored at UTC midnight. UTC and Asia/Kolkata were the same calendar day during this run, so a midnight boundary miss was not observed live.\"}"
+    },
+    {
+      "id": "LEAVE-01",
+      "title": "End date before start date is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"End date is before the start date\"}"
+    },
+    {
+      "id": "LEAVE-02",
+      "title": "Request larger than the balance is rejected",
+      "status": "PASS",
+      "detail": "{\"status\":400,\"message\":\"You have 12 day(s) of Casual Leave left, and this request is 23 day(s)\"}"
+    },
+    {
+      "id": "LEAVE-03",
+      "title": "Leave on a company holiday is still accepted and charged",
+      "status": "FAIL",
+      "detail": "{\"holidayStatus\":201,\"leaveStatus\":201,\"holidayDate\":\"2026-12-15\",\"leaveState\":\"PENDING\"}"
+    },
+    {
+      "id": "VAL-HOLIDAY",
+      "title": "Bad holiday date or type",
+      "status": "FAIL",
+      "detail": "{\"badDate\":500,\"badType\":500,\"dateMessage\":\"Internal server error\",\"typeMessage\":\"Internal server error\",\"dateStack\":false,\"typeStack\":false}"
+    },
+    {
+      "id": "LEAVE-04",
+      "title": "Approve after reject is rejected",
+      "status": "PASS",
+      "detail": "{\"reject\":200,\"approveAfter\":400,\"message\":\"Request not reviewable\"}"
+    },
+    {
+      "id": "LEAVE-05",
+      "title": "Department manager can approve their own leave",
+      "status": "FAIL",
+      "detail": "{\"apply\":201,\"review\":200,\"state\":\"APPROVED\"}"
+    },
+    {
+      "id": "LEAVE-06",
+      "title": "Employee cannot cancel someone else leave",
+      "status": "PASS",
+      "detail": "{\"status\":404}"
+    },
+    {
+      "id": "LEAVE-07",
+      "title": "Concurrent approve and reject",
+      "status": "FAIL",
+      "detail": "[{\"i\":0,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":1,\"remaining\":9,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":1,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":2,\"remaining\":8,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":2,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":3,\"remaining\":7,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":3,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":4,\"remaining\":6,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":4,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":5,\"remaining\":5,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":5,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":6,\"remaining\":4,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":6,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":7,\"remaining\":3,\"bothAccepted\":true,\"rejectedButUsed\":false},{\"i\":7,\"approve\":200,\"reject\":200,\"finalStatus\":\"APPROVED\",\"used\":8,\"remaining\":2,\"bothAccepted\":true,\"rejectedButUsed\":false}]"
+    },
+    {
+      "id": "LEAVE-08",
+      "title": "Two approvers approving the same request do not double-charge",
+      "status": "INFO",
+      "detail": "{\"statuses\":[200,200],\"usedBefore\":0,\"usedAfter\":1,\"remainingAfter\":11}"
+    },
+    {
+      "id": "TICKET-DUP",
+      "title": "Identical tickets are both stored",
+      "status": "INFO",
+      "detail": "{\"a\":201,\"b\":201,\"sameId\":false}"
+    },
+    {
+      "id": "TICKET-AUTH",
+      "title": "Employee cannot list or update the company ticket queue",
+      "status": "PASS",
+      "detail": "{\"list\":403,\"patch\":403}"
+    },
+    {
+      "id": "SUG-01",
+      "title": "Anonymous suggestion HTML is stored and duplicates are allowed",
+      "status": "INFO",
+      "detail": "{\"first\":201,\"second\":201,\"hrList\":200,\"employeeList\":403,\"htmlStored\":true,\"anonymousAuthorAttached\":false}"
+    },
+    {
+      "id": "VAL-SUG",
+      "title": "Invalid suggestion status",
+      "status": "FAIL",
+      "detail": "{\"status\":500,\"message\":\"Internal server error\",\"leak\":false}"
+    },
+    {
+      "id": "NOTIF-01",
+      "title": "Employee cannot mark another user notification read",
+      "status": "PASS",
+      "detail": "{\"status\":200,\"isRead\":false,\"body\":{\"count\":0}}"
+    },
+    {
+      "id": "BULL-01",
+      "title": "Employee cannot publish a bulletin; HR can store HTML",
+      "status": "PASS",
+      "detail": "{\"employee\":403,\"hr\":201}"
+    },
+    {
+      "id": "VAL-TASK",
+      "title": "Task without an assignee",
+      "status": "FAIL",
+      "detail": "{\"status\":500,\"message\":\"Internal server error\",\"leak\":false}"
+    },
+    {
+      "id": "AUTHZ-LEAD-TASK",
+      "title": "Team leader can assign a task to a Sales employee",
+      "status": "FAIL",
+      "detail": "{\"status\":201,\"assigneeDepartment\":\"Sales\",\"leaderDepartment\":\"Engineering\"}"
+    },
+    {
+      "id": "INT-01",
+      "title": "Only the owner can create an integration source",
+      "status": "FAIL",
+      "detail": "{\"employee\":403,\"hr\":403,\"create\":500,\"keyIssued\":false}"
+    },
+    {
+      "id": "INT-02",
+      "title": "Ingest requires a valid API key and duplicate external ids update",
+      "status": "FAIL",
+      "detail": "{\"noKey\":401,\"badKey\":401,\"good\":0,\"second\":0,\"rows\":0,\"amount\":null}"
+    },
+    {
+      "id": "INT-03",
+      "title": "Webhook rejects a missing key and does not duplicate external ids",
+      "status": "FAIL",
+      "detail": "{\"missingKey\":401,\"withKey\":0,\"second\":0,\"rows\":0}"
+    },
+    {
+      "id": "INT-04",
+      "title": "Webhook secret is returned to the owner and is not required on inbound calls",
+      "status": "INFO",
+      "detail": "{\"create\":201,\"list\":200,\"secretVisible\":true,\"note\":\"Inbound webhook handler authenticates the API key only.\"}"
+    },
+    {
+      "id": "INT-05",
+      "title": "Invalid invoice status on ingest",
+      "status": "INFO",
+      "detail": "{\"status\":0,\"body\":\"\"}"
+    },
+    {
+      "id": "PLAT-01",
+      "title": "Platform admin can list companies without connection strings; company token cannot",
+      "status": "PASS",
+      "detail": "{\"login\":201,\"list\":200,\"companyToken\":401,\"leaksDatabaseUrl\":false,\"companies\":[\"aithworld\",\"techthrive\"]}"
+    },
+    {
+      "id": "PERF-01",
+      "title": "Bounded load against GET /auth/me",
+      "status": "INFO",
+      "detail": "{\"vu5\":{\"requests\":2286,\"errors\":0,\"p50\":8,\"p95\":14,\"max\":24},\"vu10\":{\"requests\":3277,\"errors\":0,\"p50\":12,\"p95\":19,\"max\":32},\"vu20\":{\"requests\":4020,\"errors\":0,\"p50\":19,\"p95\":29,\"max\":57}}"
+    }
+  ]
+}
