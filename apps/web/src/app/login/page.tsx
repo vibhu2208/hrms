@@ -2,7 +2,7 @@
 
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_URL, api, isAdminRole, setSession } from '@/lib/api';
+import { API_URL, api, isAdminRole, safeTaskReturnPath, setSession } from '@/lib/api';
 
 const AITH_DEMOS = [
   { label: 'Owner', email: 'owner@demo.com' },
@@ -31,14 +31,17 @@ function LoginForm() {
 
   useEffect(() => {
     const host = window.location.host;
-    setMsHref(`${API_URL}/auth/microsoft?host=${encodeURIComponent(host)}`);
+    const safeReturn = safeTaskReturnPath(params.get('returnTo'));
+    const query = new URLSearchParams({ host });
+    if (safeReturn) query.set('returnTo', safeReturn);
+    setMsHref(`${API_URL}/auth/microsoft?${query.toString()}`);
     api<{ name: string; slug: string }>('/tenant/current')
       .then((tenant) => {
         if (tenant.name) setCompanyName(tenant.name);
         setCompanySlug(tenant.slug || '');
       })
       .catch(() => {});
-  }, []);
+  }, [params]);
 
   const demos = companySlug === 'techthrive' ? TECH_DEMOS : companySlug === 'aithworld' ? AITH_DEMOS : [];
 
@@ -53,7 +56,13 @@ function LoginForm() {
       });
       setSession(res.accessToken, res.user);
       const role = res.user.role?.code;
-      router.push(isAdminRole(role) ? '/admin' : '/employee');
+      const home = isAdminRole(role) ? '/admin' : '/employee';
+      const next = safeTaskReturnPath(params.get('returnTo'));
+      const allowed =
+        next &&
+        ((isAdminRole(role) && next.startsWith('/admin/')) ||
+          (!isAdminRole(role) && next.startsWith('/employee/')));
+      router.push(allowed ? next : home);
     } catch (err: any) {
       const message = err?.message === 'Unauthorized' ? 'The email or password is not correct.' : err?.message;
       setError(message || 'Login failed');

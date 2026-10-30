@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_URL, api, getStoredUser, isMicrosoftSession } from '@/lib/api';
+import { API_URL, api, getStoredUser, isMicrosoftSession, safeTaskReturnPath } from '@/lib/api';
 import { PlannerBoard } from '@/components/planner-board';
 import {
   BoardTask,
@@ -44,7 +44,7 @@ export function TaskBoard({
   enableActions?: boolean;
 }) {
   const [microsoftSession, setMicrosoftSession] = useState(false);
-  const sourceTabs = microsoftSession ? SOURCE_TABS : SOURCE_TABS.filter((tab) => tab.id !== 'planner');
+  const [sessionReady, setSessionReady] = useState(false);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [gostaff, setGoStaff] = useState<BoardTask[]>([]);
   const [gostaffLoading, setGoStaffLoading] = useState(false);
@@ -60,6 +60,7 @@ export function TaskBoard({
     setEmployeeId(stored?.employee?.id || null);
     const connected = isMicrosoftSession(stored);
     setMicrosoftSession(connected);
+    setSessionReady(true);
     if (connected) setSource('planner');
   }, []);
 
@@ -95,7 +96,10 @@ export function TaskBoard({
     return () => window.removeEventListener('keydown', onKey);
   }, [selected]);
 
-  const connectHref = `${API_URL}/auth/microsoft?prompt=consent&returnTo=${encodeURIComponent(returnTo)}`;
+  const loginHref = `/login?returnTo=${encodeURIComponent(safeTaskReturnPath(returnTo) || returnTo)}`;
+  const connectHref = `${API_URL}/auth/microsoft?prompt=consent&returnTo=${encodeURIComponent(returnTo)}${
+    typeof window !== 'undefined' ? `&host=${encodeURIComponent(window.location.host)}` : ''
+  }`;
 
   const visible = useMemo(() => {
     const rows = gostaff.filter((task) => {
@@ -131,7 +135,7 @@ export function TaskBoard({
   return (
     <section className="task-board">
       <div className="task-tabs" role="tablist" aria-label="Task source">
-        {sourceTabs.map((tab) => (
+        {SOURCE_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -173,7 +177,14 @@ export function TaskBoard({
         </label>
       </div>
 
-      {source === 'planner' && microsoftSession ? (
+      {source === 'planner' && !sessionReady ? (
+        <p className="muted">Loading…</p>
+      ) : source === 'planner' && !microsoftSession ? (
+        <p className="empty">
+          Sign in with Microsoft to access Microsoft Planner.{' '}
+          <a href={loginHref}>Open the sign-in page</a>
+        </p>
+      ) : source === 'planner' ? (
         <PlannerBoard
           search={search}
           status={status}

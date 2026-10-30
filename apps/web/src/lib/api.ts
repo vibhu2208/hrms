@@ -51,10 +51,14 @@ function authMethodFromToken(token?: string | null): AuthMethod | null {
   }
 }
 
-export function isMicrosoftSession(user?: AuthUser | null) {
-  const fromToken = authMethodFromToken(getToken());
-  if (fromToken) return fromToken === 'microsoft';
-  return (user ?? getStoredUser())?.authMethod === 'microsoft';
+export function isMicrosoftSession(_user?: AuthUser | null) {
+  return authMethodFromToken(getToken()) === 'microsoft';
+}
+
+export function safeTaskReturnPath(value?: string | null) {
+  const path = (value || '').trim().split('?')[0].replace(/\/+$/, '');
+  if (path === '/admin/tasks' || path === '/employee/tasks') return path;
+  return '';
 }
 
 function tenantHeaders(headers: Record<string, string>) {

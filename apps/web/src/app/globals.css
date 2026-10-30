@@ -538,6 +538,10 @@ h1, h2, .display {
   padding: 1.5rem 0;
   text-align: center;
 }
+.empty a {
+  color: var(--brand);
+  text-decoration: underline;
+}
 
 .careers-page {
   max-width: 960px;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, clearSession, isAdminRole, setSession } from '@/lib/api';
+import { api, clearSession, isAdminRole, safeTaskReturnPath, setSession } from '@/lib/api';
 
 export default function MicrosoftCallbackPage() {
   const router = useRouter();
@@ -21,8 +21,11 @@ export default function MicrosoftCallbackPage() {
     api('/auth/me')
       .then((user) => {
         setSession(token, user);
-        const tasksReturn = returnTo === '/admin/tasks' || returnTo === '/employee/tasks' ? returnTo : '';
-        router.replace(tasksReturn || (isAdminRole(user.role?.code) ? '/admin' : '/employee'));
+        const next = safeTaskReturnPath(returnTo);
+        const admin = isAdminRole(user.role?.code);
+        const allowed =
+          next && ((admin && next.startsWith('/admin/')) || (!admin && next.startsWith('/employee/')));
+        router.replace(allowed ? next : admin ? '/admin' : '/employee');
       })
       .catch((err: any) => {
         clearSession();
