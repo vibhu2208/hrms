@@ -1,12 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MicrosoftSessionGuard } from '../auth/microsoft-session.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreatePlannerBucketDto, CreatePlannerPlanDto, CreatePlannerTaskDto, RenamePlannerBucketDto, UpdatePlannerTaskDto } from './dto/planner.dto';
 import { PlannerService } from './planner.service';
 
 @Controller('planner')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, MicrosoftSessionGuard)
 export class PlannerController {
   constructor(private planner: PlannerService) {}
 

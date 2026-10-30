@@ -10,6 +10,7 @@ type JwtPayload = {
   role: string;
   employeeId?: string;
   tenantSlug?: string;
+  authMethod?: 'password' | 'microsoft';
 };
 
 @Injectable()
@@ -33,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: payload.role,
       employeeId: payload.employeeId,
       tenantSlug: payload.tenantSlug,
+      authMethod: payload.authMethod === 'microsoft' ? 'microsoft' : 'password',
     };
   }
 }

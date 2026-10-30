@@ -51,18 +51,19 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
-    const token = this.signSession(user);
+    const token = this.signSession(user, 'password');
 
     await this.audit.log({
       actorId: user.id,
       action: 'LOGIN',
       resource: 'AUTH',
       resourceId: user.id,
+      metadata: { method: 'password' },
     });
 
     return {
       accessToken: token,
-      user: this.sanitize(user),
+      user: this.presentUser(user, 'password'),
     };
   }
 
@@ -223,13 +224,13 @@ export class AuthService {
     });
 
     return {
-      token: this.signSession(user),
+      token: this.signSession(user, 'microsoft'),
       returnTo: safeTaskReturn(statePayload.returnTo),
       returnOrigin: originFromHost(statePayload.returnOrigin),
     };
   }
 
-  async me(userId: string) {
+  async me(userId: string, authMethod?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -240,7 +241,7 @@ export class AuthService {
       },
     });
     if (!user) throw new UnauthorizedException();
-    return this.sanitize(user);
+    return this.presentUser(user, authMethod === 'microsoft' ? 'microsoft' : 'password');
   }
 
   originFor(returnOrigin?: string | null) {
@@ -257,7 +258,10 @@ export class AuthService {
     }
   }
 
-  private signSession(user: { id: string; email: string; role: { code: string }; employee?: { id: string } | null }) {
+  private signSession(
+    user: { id: string; email: string; role: { code: string }; employee?: { id: string } | null },
+    authMethod: 'password' | 'microsoft',
+  ) {
     const tenant = getTenantContext()?.tenant;
     if (!tenant) throw new UnauthorizedException('Open this company from its own web address.');
     return this.jwt.sign({
@@ -266,6 +270,7 @@ export class AuthService {
       role: user.role.code,
       employeeId: user.employee?.id,
       tenantSlug: tenant.slug,
+      authMethod,
     });
   }
 
@@ -281,8 +286,12 @@ export class AuthService {
   }
 
   sanitize(user: any) {
-    const { passwordHash, ...rest } = user;
+    const { passwordHash, microsoftAccount, ...rest } = user;
     return rest;
+  }
+
+  private presentUser(user: any, authMethod: 'password' | 'microsoft') {
+    return { ...this.sanitize(user), authMethod };
   }
 
   async hashPassword(password: string) {

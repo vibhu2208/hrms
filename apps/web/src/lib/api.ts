@@ -1,8 +1,11 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
+export type AuthMethod = 'password' | 'microsoft';
+
 export type AuthUser = {
   id: string;
   email: string;
+  authMethod?: AuthMethod;
   role: { code: string; name: string; permissions?: any[] };
   employee?: {
     id: string;
@@ -33,6 +36,25 @@ export function getStoredUser(): AuthUser | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('gs_user');
   return raw ? JSON.parse(raw) : null;
+}
+
+function authMethodFromToken(token?: string | null): AuthMethod | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded)) as { authMethod?: string };
+    return payload.authMethod === 'microsoft' ? 'microsoft' : 'password';
+  } catch {
+    return null;
+  }
+}
+
+export function isMicrosoftSession(user?: AuthUser | null) {
+  const fromToken = authMethodFromToken(getToken());
+  if (fromToken) return fromToken === 'microsoft';
+  return (user ?? getStoredUser())?.authMethod === 'microsoft';
 }
 
 function tenantHeaders(headers: Record<string, string>) {

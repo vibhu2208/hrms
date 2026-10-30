@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_URL, api, getStoredUser } from '@/lib/api';
+import { API_URL, api, getStoredUser, isMicrosoftSession } from '@/lib/api';
 import { PlannerBoard } from '@/components/planner-board';
 import {
   BoardTask,
@@ -43,18 +43,24 @@ export function TaskBoard({
   returnTo: '/admin/tasks' | '/employee/tasks';
   enableActions?: boolean;
 }) {
+  const [microsoftSession, setMicrosoftSession] = useState(false);
+  const sourceTabs = microsoftSession ? SOURCE_TABS : SOURCE_TABS.filter((tab) => tab.id !== 'planner');
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [gostaff, setGoStaff] = useState<BoardTask[]>([]);
   const [gostaffLoading, setGoStaffLoading] = useState(false);
   const [gostaffError, setGoStaffError] = useState('');
-  const [source, setSource] = useState<SourceTab>('planner');
+  const [source, setSource] = useState<SourceTab>('all');
   const [status, setStatus] = useState('all');
   const [due, setDue] = useState('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<BoardTask | null>(null);
 
   useEffect(() => {
-    setEmployeeId(getStoredUser()?.employee?.id || null);
+    const stored = getStoredUser();
+    setEmployeeId(stored?.employee?.id || null);
+    const connected = isMicrosoftSession(stored);
+    setMicrosoftSession(connected);
+    if (connected) setSource('planner');
   }, []);
 
   async function loadGoStaff() {
@@ -125,7 +131,7 @@ export function TaskBoard({
   return (
     <section className="task-board">
       <div className="task-tabs" role="tablist" aria-label="Task source">
-        {SOURCE_TABS.map((tab) => (
+        {sourceTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -167,7 +173,7 @@ export function TaskBoard({
         </label>
       </div>
 
-      {source === 'planner' ? (
+      {source === 'planner' && microsoftSession ? (
         <PlannerBoard
           search={search}
           status={status}

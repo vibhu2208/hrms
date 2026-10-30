@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, getStoredUser } from '@/lib/api';
+import { api, getStoredUser, isMicrosoftSession } from '@/lib/api';
 import { BoardTask, PlannerListResponse, dueLabel, fromGoStaff, fromPlanner, sourceLine, upcomingTasks } from '@/lib/tasks';
 
 function initials(first?: string, last?: string) {
@@ -66,15 +66,20 @@ export default function EmployeeHome() {
     api<any[]>('/leave/balances')
       .then((rows) => setLeaveLeft((rows || []).reduce((sum, row) => sum + Number(row.available || 0), 0)))
       .catch(() => setLeaveLeft(null));
-    api<PlannerListResponse>('/planner/tasks')
-      .then((res) => {
-        setPlanner(res);
-        setPlannerFailed(res.status === 'expired' || res.status === 'forbidden' || res.status === 'error');
-      })
-      .catch(() => {
-        setPlanner({ status: 'error', tasks: [] });
-        setPlannerFailed(true);
-      });
+    if (!isMicrosoftSession()) {
+      setPlanner({ status: 'ok', tasks: [] });
+      setPlannerFailed(false);
+    } else {
+      api<PlannerListResponse>('/planner/tasks')
+        .then((res) => {
+          setPlanner(res);
+          setPlannerFailed(res.status === 'expired' || res.status === 'forbidden' || res.status === 'error');
+        })
+        .catch(() => {
+          setPlanner({ status: 'error', tasks: [] });
+          setPlannerFailed(true);
+        });
+    }
   }, []);
 
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, getStoredUser } from '@/lib/api';
+import { api, getStoredUser, isMicrosoftSession } from '@/lib/api';
 import { UpcomingMeetings } from '@/components/upcoming-meetings';
 import { BoardTask, PlannerListResponse, fromGoStaff, fromPlanner, sourceLine, upcomingTasks } from '@/lib/tasks';
 
@@ -170,26 +170,31 @@ export default function AdminDashboard() {
     load<{ days: number[] }>('/leave/week-off', (row) => {
       if (Array.isArray(row?.days)) setWeekOffs(row.days);
     });
-    api<PlannerListResponse>('/planner/tasks')
-      .then((res) => {
-        if (cancel) return;
-        if (res.status === 'ok') {
-          setPlannerMine((res.tasks || []).map(fromPlanner));
-          setPlannerFailed(false);
-        } else if (res.status === 'needsConsent' || res.status === 'needsPlannerConsent') {
-          setPlannerMine([]);
-          setPlannerFailed(false);
-        } else {
-          setPlannerMine([]);
-          setPlannerFailed(true);
-        }
-      })
-      .catch(() => {
-        if (!cancel) {
-          setPlannerMine([]);
-          setPlannerFailed(true);
-        }
-      });
+    if (!isMicrosoftSession()) {
+      setPlannerMine([]);
+      setPlannerFailed(false);
+    } else {
+      api<PlannerListResponse>('/planner/tasks')
+        .then((res) => {
+          if (cancel) return;
+          if (res.status === 'ok') {
+            setPlannerMine((res.tasks || []).map(fromPlanner));
+            setPlannerFailed(false);
+          } else if (res.status === 'needsConsent' || res.status === 'needsPlannerConsent') {
+            setPlannerMine([]);
+            setPlannerFailed(false);
+          } else {
+            setPlannerMine([]);
+            setPlannerFailed(true);
+          }
+        })
+        .catch(() => {
+          if (!cancel) {
+            setPlannerMine([]);
+            setPlannerFailed(true);
+          }
+        });
+    }
     return () => {
       cancel = true;
     };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, isAdminRole, setSession } from '@/lib/api';
+import { api, clearSession, isAdminRole, setSession } from '@/lib/api';
 
 export default function MicrosoftCallbackPage() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function MicrosoftCallbackPage() {
         router.replace(tasksReturn || (isAdminRole(user.role?.code) ? '/admin' : '/employee'));
       })
       .catch((err: any) => {
+        clearSession();
         setError(err.message || 'Microsoft sign-in failed');
       });
   }, [router]);
