@@ -152,7 +152,7 @@ export class IntegrationsService {
           'revenue_generated',
           'target',
         ],
-        sample: 'spm-001,Rahul Sharma,2026-09-08,20,15,5,250000,300000\n',
+        sample: 'spm-001,Sales Demo,2026-09-08,20,15,5,250000,300000\n',
       },
     };
     const t = templates[domain];

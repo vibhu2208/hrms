@@ -32,11 +32,11 @@ npm run dev
 
 ### Demo logins
 
-| Email | Password | Role |
-|-------|----------|------|
-| connect@aithworld.com | password123 | Owner |
-| hr@gostaff.local | password123 | HR |
-| employee@gostaff.local | password123 | Employee |
+| Name | Email | Password | Role |
+|------|-------|----------|------|
+| Owner Demo | owner@demo.com | password123 | Owner |
+| HR Demo | hr@demo.com | password123 | HR |
+| Employee Demo | employee@owner.com | password123 | Employee |
 
 ## Deploy
 

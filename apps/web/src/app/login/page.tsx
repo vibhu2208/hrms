@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL, api, isAdminRole, setSession } from '@/lib/api';
 
 const AITH_DEMOS = [
-  { label: 'Owner', email: 'connect@aithworld.com' },
-  { label: 'HR', email: 'hr@gostaff.local' },
-  { label: 'Employee', email: 'employee@gostaff.local' },
+  { label: 'Owner', email: 'owner@demo.com' },
+  { label: 'HR', email: 'hr@demo.com' },
+  { label: 'Employee', email: 'employee@owner.com' },
 ];
 
 const TECH_DEMOS = [{ label: 'Owner', email: 'owner@techthrive.local' }];

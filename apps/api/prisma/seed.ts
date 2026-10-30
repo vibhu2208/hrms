@@ -12,7 +12,7 @@ async function main() {
     return;
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: 'connect@aithworld.com' } });
+  const existing = await prisma.user.findUnique({ where: { email: 'owner@demo.com' } });
   if (existing) {
     console.log('Aith World already seeded.');
     return;
@@ -98,16 +98,16 @@ async function main() {
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const ownerUser = await prisma.user.upsert({
-    where: { email: 'connect@aithworld.com' },
+    where: { email: 'owner@demo.com' },
     create: {
-      email: 'connect@aithworld.com',
+      email: 'owner@demo.com',
       passwordHash,
       roleId: ownerRole.id,
       employee: {
         create: {
           employeeCode: 'GS-001',
-          firstName: 'Aarav',
-          lastName: 'Mehta',
+          firstName: 'Owner',
+          lastName: 'Demo',
           phone: '+91 98765 00001',
           joiningDate: new Date('2020-01-15'),
           dateOfBirth: new Date('1985-06-20'),
@@ -121,16 +121,16 @@ async function main() {
   });
 
   const hrUser = await prisma.user.upsert({
-    where: { email: 'hr@gostaff.local' },
+    where: { email: 'hr@demo.com' },
     create: {
-      email: 'hr@gostaff.local',
+      email: 'hr@demo.com',
       passwordHash,
       roleId: hrRole.id,
       employee: {
         create: {
           employeeCode: 'GS-002',
-          firstName: 'Priya',
-          lastName: 'Sharma',
+          firstName: 'HR',
+          lastName: 'Demo',
           phone: '+91 98765 00002',
           joiningDate: new Date('2021-03-01'),
           dateOfBirth: new Date('1990-09-12'),
@@ -145,16 +145,16 @@ async function main() {
   });
 
   const empUser = await prisma.user.upsert({
-    where: { email: 'employee@gostaff.local' },
+    where: { email: 'employee@owner.com' },
     create: {
-      email: 'employee@gostaff.local',
+      email: 'employee@owner.com',
       passwordHash,
       roleId: empRole.id,
       employee: {
         create: {
           employeeCode: 'GS-003',
-          firstName: 'Rohan',
-          lastName: 'Patel',
+          firstName: 'Employee',
+          lastName: 'Demo',
           phone: '+91 98765 00003',
           joiningDate: new Date('2023-07-10'),
           dateOfBirth: new Date('1995-03-25'),
@@ -260,7 +260,7 @@ async function main() {
 
   await prisma.companyContact.createMany({
     data: [
-      { name: 'HR Desk', role: 'HR', department: 'Human Resources', email: 'hr@gostaff.local', phone: '+91 98765 00002' },
+      { name: 'HR Desk', role: 'HR', department: 'Human Resources', email: 'hr@demo.com', phone: '+91 98765 00002' },
       { name: 'IT Support', role: 'IT', department: 'Engineering', email: 'it@gostaff.local', isEmergency: false },
       { name: 'Emergency', role: 'Security', phone: '100', isEmergency: true },
     ],
@@ -313,10 +313,10 @@ async function main() {
       status: 'OPEN',
       applications: {
         create: {
-          fullName: 'Asha Patel',
-          email: 'asha.patel@example.com',
+          fullName: 'Applicant Demo',
+          email: 'applicant.demo@example.com',
           phone: '+91 98765 43210',
-          resumeUrl: 'https://example.com/resume/asha',
+          resumeUrl: 'https://example.com/resume/applicant-demo',
           coverLetter: 'Excited to join Go Staff and help scale the HR platform.',
           experienceYears: 5,
           currentCompany: 'Acme Soft',
@@ -437,7 +437,7 @@ async function main() {
     data: {
       externalId: 'spm-1',
       sourceId: source.id,
-      salespersonName: 'Neha Kapoor',
+      salespersonName: 'Sales Demo',
       weekStart: new Date('2026-09-08'),
       leadsAssigned: 20,
       leadsContacted: 16,
@@ -493,14 +493,14 @@ async function main() {
   });
 
   const existingOnboarding = await prisma.onboardingRequest.findFirst({
-    where: { email: 'neha.gupta@example.com' },
+    where: { email: 'candidate.demo@example.com' },
   });
   if (!existingOnboarding) {
     await prisma.onboardingRequest.create({
       data: {
-        firstName: 'Neha',
-        lastName: 'Gupta',
-        email: 'neha.gupta@example.com',
+        firstName: 'Candidate',
+        lastName: 'Demo',
+        email: 'candidate.demo@example.com',
         phone: '+91 98765 11111',
         employeeCode: 'GS-010',
         roleCode: 'EMPLOYEE',
@@ -532,9 +532,9 @@ async function main() {
   }
 
   console.log('Seed complete.');
-  console.log('Login: connect@aithworld.com / password123');
-  console.log('       hr@gostaff.local / password123');
-  console.log('       employee@gostaff.local / password123');
+  console.log('Login: owner@demo.com / password123');
+  console.log('       hr@demo.com / password123');
+  console.log('       employee@owner.com / password123');
   console.log('Demo ingest API key (save this):', rawKey);
 }
 
